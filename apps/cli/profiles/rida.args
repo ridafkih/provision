@@ -2,3 +2,5 @@
 ridafkih
 --ssh-key
 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA5LPsxu3CaoQy8pV9oRXjRpqXNTUdEksM6sqZiTdG6U worm
+--grant
+all:/usr/libexec/sshd-keygen-wrapper
