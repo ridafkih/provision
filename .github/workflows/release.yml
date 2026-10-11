@@ -32,6 +32,7 @@ jobs:
         run: |
           cd apps/cli/dist
           cp provision provision-darwin-arm64
+          codesign --verify --strict --verbose=2 provision-darwin-arm64
           ./provision-darwin-arm64 --version
           shasum -a 256 provision-darwin-arm64 > provision-darwin-arm64.sha256
           version="$(./provision-darwin-arm64 --version)"
