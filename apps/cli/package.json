@@ -1,10 +1,19 @@
 {
   "name": "@provision/cli",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
+  "bin": { "provision": "src/cli.ts" },
   "scripts": {
-    "build": "bun build/bundle.ts",
-    "test": "vitest run",
+    "build": "bun build/compile.ts",
+    "test": "bun test --timeout 30000",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "ink": "6",
+    "react": "19"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0"
   }
 }

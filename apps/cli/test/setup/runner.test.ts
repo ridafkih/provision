@@ -1,0 +1,64 @@
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { createChecklist, renderChecklist } from "../../src/core/checklist";
+import { renderRunnerAgent, runnerConfig, runnerSlotCount } from "../../src/setup/roles/runner";
+import { checkRunnerRole } from "../../src/setup/roles/runner";
+import { runnerAgentTemplates } from "../../src/setup/roles/runner-kit";
+import { addFakeCommand, createSandbox, disposeSandbox, setupOf, type Sandbox } from "../sandbox";
+
+const fakeHost = (sandbox: Sandbox, memoryBytes: number, cpuCount: number) => {
+  addFakeCommand(sandbox, "sysctl", `case "$2" in hw.memsize) echo ${memoryBytes} ;; hw.ncpu) echo ${cpuCount} ;; esac`);
+  addFakeCommand(sandbox, "scutil", "echo Rack-Mini");
+};
+
+describe("runner role config", () => {
+  let sandbox: Sandbox;
+  beforeEach(() => {
+    sandbox = createSandbox();
+  });
+  afterEach(() => disposeSandbox(sandbox));
+
+  it("labels the runner, names it after the host and bakes the prepulled images", () => {
+    fakeHost(sandbox, 16 * 1024 ** 3, 10);
+    const config = runnerConfig(setupOf(sandbox, ["--runner-repo", "example/app", "--runner-label", "app", "--runner-prepull", "postgres:18", "--runner-prepull", "redis:8"]));
+    expect(config).toContain("GITHUB_REPOSITORY=example/app\n");
+    expect(config).toContain("RUNNER_LABELS=self-hosted,Linux,ARM64,app\n");
+    expect(config).toContain("RUNNER_NAME_PREFIX=rack-mini\n");
+    expect(config).toContain("PREPULL_IMAGES=postgres:18,redis:8\n");
+    expect(config).toContain("LINUX_SLOTS=2\n");
+  });
+
+  it("keeps the base labels and an empty prepull list when none are given", () => {
+    fakeHost(sandbox, 16 * 1024 ** 3, 10);
+    const config = runnerConfig(setupOf(sandbox, ["--runner-repo", "o/r"]));
+    expect(config).toContain("RUNNER_LABELS=self-hosted,Linux,ARM64\n");
+    expect(config).toContain("PREPULL_IMAGES=\n");
+  });
+
+  it.each([
+    [32, 10, 4],
+    [24, 8, 3],
+    [64, 4, 2],
+  ])("sizes %i GB and %i cores to %i slots", (gigabytes, cores, slots) => {
+    fakeHost(sandbox, gigabytes * 1024 ** 3, cores);
+    expect(runnerSlotCount(sandbox.machine)).toBe(slots);
+  });
+
+  it("refuses a host too small for one runner VM", () => {
+    fakeHost(sandbox, 8 * 1024 ** 3, 8);
+    expect(() => runnerSlotCount(sandbox.machine)).toThrow("too little for one 6144 MB runner VM");
+  });
+
+  it("reports a runner role that was never set up instead of stopping the checklist", () => {
+    addFakeCommand(sandbox, "tart", "exit 1");
+    const checklist = createChecklist();
+    checkRunnerRole(setupOf(sandbox, ["--role", "runner", "--runner-repo", "o/r"]), checklist);
+    expect(renderChecklist(checklist)).toContain("GitHub runner configured");
+  });
+
+  it("points the launch agents at the installed runner scripts", () => {
+    const agent = renderRunnerAgent(sandbox.machine, runnerAgentTemplates.slot, "dev.provision.runner-slot-2", 2);
+    expect(agent).toContain(`<string>${sandbox.home}/.provision/kit/roles/runner/bin/run-slot.sh</string>`);
+    expect(agent).toContain("<string>dev.provision.runner-slot-2</string>");
+    expect(agent).not.toContain("@");
+  });
+});

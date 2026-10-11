@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["typescript", "unicorn", "import", "oxc", "vitest"],
+  "plugins": ["typescript", "unicorn", "import", "oxc", "jest"],
   "categories": { "correctness": "error", "suspicious": "warn", "perf": "warn" },
   "ignorePatterns": ["**/dist/**", "**/node_modules/**", "**/.turbo/**", "**/.wrangler/**"],
-  "overrides": [{ "files": ["apps/macslim/src/**"], "rules": { "no-await-in-loop": "off" } }]
+  "overrides": [{ "files": ["apps/cli/src/**"], "rules": { "no-await-in-loop": "off" } }]
 }
