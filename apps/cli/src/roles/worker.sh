@@ -9,8 +9,8 @@ is_softnet_setuid_root() {
 }
 
 step_role_worker() {
-  ensure_formula cirruslabs/cli/tart
-  ensure_formula cirruslabs/cli/softnet
+  ensure_formula openai/tools/tart
+  ensure_formula openai/tools/softnet
   if is_softnet_setuid_root; then
     unchanged "softnet runs set-uid root, so Tart can isolate VM networks without sudo"
   else
