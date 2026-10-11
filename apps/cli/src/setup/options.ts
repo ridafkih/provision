@@ -19,6 +19,7 @@ export type Options = {
   wantedHostname: string;
   notifyUrl: string;
   isSlimSkipped: boolean;
+  isPasswordlessSudoSkipped: boolean;
   mode: "apply" | "check" | "help";
 };
 
@@ -33,6 +34,7 @@ export const emptyOptions = (): Options => ({
   wantedHostname: "",
   notifyUrl: "",
   isSlimSkipped: false,
+  isPasswordlessSudoSkipped: false,
   mode: "apply",
 });
 
@@ -54,6 +56,7 @@ export const usage = `provision: set up this Mac to run headless, slim it down, 
   --grant <kind>:<path>     walk you through a privacy grant in System Settings and check it took;
                             kind is full-disk-access, screen-recording, accessibility or all (repeatable)
   --no-slim                 leave the services and apps macOS ships alone
+  --no-passwordless-sudo    keep asking for your password for sudo after setup
   --notify-url <url>        POST a JSON summary here when done
   --check                   only print the checklist
   --version
@@ -111,6 +114,9 @@ export function parseArguments(argumentList: readonly string[], options: Options
         break;
       case "--no-slim":
         options.isSlimSkipped = true;
+        break;
+      case "--no-passwordless-sudo":
+        options.isPasswordlessSudoSkipped = true;
         break;
       case "--check":
         options.mode = "check";

@@ -40,6 +40,7 @@ export type Paths = {
   socketFilter: string;
   remoteManagementKickstart: string;
   commandLink: string;
+  sudoersDirectory: string;
 };
 
 export const systemPaths: Paths = {
@@ -51,6 +52,7 @@ export const systemPaths: Paths = {
   socketFilter: "/usr/libexec/ApplicationFirewall/socketfilterfw",
   remoteManagementKickstart: "/System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart",
   commandLink: "/usr/local/bin/provision",
+  sudoersDirectory: "/etc/sudoers.d",
 };
 
 export type RunOptions = { input?: string; isInteractive?: boolean; environment?: Record<string, string> };

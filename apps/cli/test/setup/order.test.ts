@@ -23,6 +23,7 @@ describe("step order", () => {
 
   it("slims last, once SSH, automatic login and Tailscale are in place", () => {
     expect(ids.at(-1)).toBe("slim");
+    expect(ids[0]).toBe("passwordless-sudo");
     for (const before of ["ssh", "unattended-boot", "tailscale", "privacy-grants"]) expect(ids.indexOf(before)).toBeLessThan(ids.indexOf("slim"));
   });
 });

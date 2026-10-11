@@ -40,6 +40,7 @@ Run `provision` again any time (it is copied to `~/.provision/bin` and linked in
 | Area | Settings |
 |---|---|
 | Power and recovery | Never sleeps (`pmset` sleep, display, disk and standby 0, sleep disabled, Power Nap off), starts up after a power cut, wakes for network access, keeps TCP alive, restarts after a freeze where `systemsetup` allows it. |
+| Passwordless sudo | `/etc/sudoers.d/provision-<user>` (root:wheel, 0440) with `<user> ALL=(ALL) NOPASSWD: ALL`, checked with `visudo` before it is installed and again after. It is the first step, so every later root step, and every rerun over SSH, runs without your password. `--no-passwordless-sudo` keeps sudo asking. |
 | Unattended boot | FileVault off (it waits for decryption to finish) and automatic login as you, so a power cut ends at your desktop with the login keychain unlocked. |
 | Remote access | Remote Login (SSH) on, your GitHub keys and any `--ssh-key` authorized, passwords off for SSH. Screen Sharing on, Remote Management off. |
 | Tailscale | The open-source `tailscaled` from Homebrew as a system daemon, so it connects before anyone logs in and follows the Mac across networks and between Wi-Fi and Ethernet. It joins with `--accept-dns=false`, so the Mac keeps its own DNS: other devices still reach it by its tailnet name. A Tailscale app that is already installed is used instead of adding a second daemon. |
@@ -118,6 +119,7 @@ provision --github <you> --role runner --runner-repo example/app --runner-label 
 --role runner|worker      add a role (repeatable)
 --runner-repo, --runner-label, --runner-prepull
 --no-slim                 leave the services and apps macOS ships alone
+--no-passwordless-sudo    keep asking for your password for sudo after setup
 --notify-url <url>        POST a JSON summary when done
 --check                   print the checklist only
 --profile <name>          add a built-in profile's arguments first

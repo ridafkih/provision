@@ -14,6 +14,7 @@ import { headless } from "./steps/headless";
 import { homebrew } from "./steps/homebrew";
 import { hostname } from "./steps/hostname";
 import { network } from "./steps/network";
+import { passwordlessSudo } from "./steps/passwordless-sudo";
 import { sendNotification } from "./steps/notify";
 import { power } from "./steps/power";
 import { privacy } from "./steps/privacy";
@@ -60,6 +61,7 @@ const unattendedBootThenForget: SetupStep = {
 };
 
 export const setupSteps: SetupStep[] = [
+  passwordlessSudo,
   hostname,
   power,
   headless,
@@ -76,7 +78,7 @@ export const setupSteps: SetupStep[] = [
   slim,
 ];
 
-const checkOrder: SetupStep[] = [power, headless, network, updates, privacy, firewall, sharing, ssh, unattendedBoot, homebrew, tailscale, roles, privacyGrants, slim];
+const checkOrder: SetupStep[] = [passwordlessSudo, power, headless, network, updates, privacy, firewall, sharing, ssh, unattendedBoot, homebrew, tailscale, roles, privacyGrants, slim];
 
 function installCommand(machine: Machine, runningBinary: string) {
   installBinary(machine, runningBinary);
