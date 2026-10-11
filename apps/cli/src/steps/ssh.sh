@@ -6,6 +6,8 @@ key_material() {
   awk 'NF >= 2 && $1 ~ /^(ssh-|ecdsa-|sk-)/ {print $1" "$2}' "$@" 2>/dev/null | sort -u
 }
 
+readonly cached_public_keys="$HOME/.provision/authorized-keys"
+
 wanted_public_keys() {
   local github_user key
   for github_user in ${github_users[@]+"${github_users[@]}"}; do
@@ -32,15 +34,29 @@ merge_authorized_keys() {
   printf '%s\n' "$added"
 }
 
+fetch_public_keys() {
+  local fetched
+  install -d -m 700 "$HOME/.provision"
+  fetched="$(mktemp)"
+  if wanted_public_keys >"$fetched" && [[ -s "$fetched" ]]; then
+    mv "$fetched" "$cached_public_keys"
+    chmod 600 "$cached_public_keys"
+    say "fetched the SSH keys to authorize"
+  elif [[ -s "$cached_public_keys" ]]; then
+    rm -f "$fetched"
+    say "could not fetch the SSH keys; using the ones saved by the last run"
+  else
+    rm -f "$fetched"
+    die "could not fetch the SSH keys for: ${github_users[*]-}; check the network and run the same command again"
+  fi
+}
+
 step_ssh() {
   local authorized_keys="$HOME/.ssh/authorized_keys"
-  local wanted_file added
+  local added
   install -d -m 700 "$HOME/.ssh"
-  wanted_file="$(mktemp)"
-  wanted_public_keys >"$wanted_file" || die "could not fetch the SSH keys for: ${github_users[*]-}"
-  [[ -s "$wanted_file" ]] || die "no SSH public keys to authorize; pass --github <user> or --ssh-key '<key>'"
-  added="$(merge_authorized_keys "$authorized_keys" "$wanted_file")"
-  rm -f "$wanted_file"
+  [[ -s "$cached_public_keys" ]] || die "no SSH public keys to authorize; pass --github <user> or --ssh-key '<key>'"
+  added="$(merge_authorized_keys "$authorized_keys" "$cached_public_keys")"
   ((added == 0)) && unchanged "$authorized_keys holds every wanted key" || changed "added $added key(s) to $authorized_keys"
 
   if is_listening 22; then
