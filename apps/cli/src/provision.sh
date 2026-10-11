@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-readonly kit_directory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly kit_directory="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 for library in "$kit_directory"/lib/*.sh "$kit_directory"/steps/*.sh "$kit_directory"/roles/*.sh; do
   source "$library"
 done

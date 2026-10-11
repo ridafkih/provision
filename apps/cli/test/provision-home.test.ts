@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -56,5 +57,16 @@ describe("a ~/.provision left behind by root", () => {
     runWithProvision(sandbox, "install_kit");
     expect(existsSync(join(sandbox.home, ".provision/kit/stale.sh"))).toBe(false);
     expect(readFileSync(join(sandbox.home, ".provision/kit/provision.sh"), "utf8")).toBe(readFileSync(provisionScript, "utf8"));
+  });
+});
+
+describe("the provision command link", () => {
+  it("finds its kit when started through a symlink, as /usr/local/bin/provision is", () => {
+    const sandbox = createShellSandbox();
+    const link = join(sandbox.bin, "provision");
+    spawnSync("ln", ["-s", provisionScript, link]);
+    const result = spawnSync("/bin/bash", [link, "--help"], { encoding: "utf8", env: { PATH: "/usr/bin:/bin:/usr/sbin:/sbin", HOME: sandbox.home, USER: "rack" } });
+    disposeShellSandbox(sandbox);
+    expect(result.stderr).not.toContain("No such file");
   });
 });
