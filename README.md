@@ -22,8 +22,9 @@ Without network access to GitHub, `bun run build` writes one self-contained inst
 
 1. Finish macOS Setup Assistant with your own admin account. Plug in power and network.
 2. Open Terminal and run the command. It asks for your password once, in the terminal. The password unlocks sudo, turns FileVault off and turns on automatic login; it is kept in memory for those steps only and never written or sent.
-3. When Tailscale's sign-in page opens in the browser, sign in. The command waits until the Mac is on the tailnet.
-4. Read the ready-to-rack checklist. Do the items marked `!`, then unplug the display, keyboard and mouse and rack it.
+3. Tailscale's sign-in page opens in the browser by itself. Sign in and approve the Mac; the command waits until it is on the tailnet.
+4. For each `--grant`, System Settings opens at the right privacy pane and Finder shows the item. Drag it into the list and switch it on; the command checks the grant took before it moves on.
+5. Read the ready-to-rack checklist. Do the items marked `!`, then unplug the display, keyboard and mouse and rack it.
 
 Run `provision` again any time (it is linked into `/usr/local/bin`); with no options it replays the options of the last run. `provision --check` only prints the checklist.
 
@@ -42,9 +43,15 @@ Run `provision` again any time (it is linked into `/usr/local/bin`); with no opt
 
 Every step is idempotent and prints `set:` or `unchanged:`.
 
+## Privacy grants
+
+Full Disk Access, Screen Recording and Accessibility can only be switched on by a person in System Settings, or pre-approved by an MDM server. `--grant <kind>:<path>` (kind `full-disk-access`, `screen-recording`, `accessibility` or `all`) makes that a guided step: provision opens the exact pane, reveals the app or tool in Finder, and polls the privacy database until the switch is on. Full Disk Access is always asked for first, because the other grants are read back through it: directly when Terminal has it, otherwise over SSH to this Mac with a key that only works from 127.0.0.1.
+
+For a Mac you drive over SSH, the client to grant is `/usr/libexec/sshd-keygen-wrapper` (the same switch as "Allow full disk access for remote users" under Remote Login). The `rida` profile asks for all three on it.
+
 ## What it never does
 
-- It never writes the privacy (TCC) database. Full Disk Access, Screen Recording and Accessibility stay clicks in System Settings; none is needed for the base setup.
+- It never writes the privacy (TCC) database; System Integrity Protection guards it, and a grant written around it would not be trustworthy.
 - It doesn't turn off notifications: Focus and Do Not Disturb have no supported command line. With no display attached, nothing waits on a banner.
 
 ## What still needs your hands

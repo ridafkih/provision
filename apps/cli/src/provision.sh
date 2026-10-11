@@ -13,6 +13,7 @@ github_users=()
 extra_public_keys=()
 roles=()
 runner_labels=()
+requested_grants=()
 runner_prepull_images=()
 runner_repository=""
 wanted_hostname=""
@@ -33,6 +34,8 @@ provision: set up this Mac to run headless, then report whether it is ready to r
   --runner-repo <owner/repo>
   --runner-label <label>    extra runner label beyond self-hosted, Linux, ARM64 (repeatable)
   --runner-prepull <image>  container image to bake into the runner VM (repeatable)
+  --grant <kind>:<path>     walk you through a privacy grant in System Settings and check it took;
+                            kind is full-disk-access, screen-recording, accessibility or all (repeatable)
   --notify-url <url>        POST a JSON summary here when done
   --check                   only print the checklist
   --help
@@ -53,6 +56,11 @@ parse_arguments() {
       --runner-repo) runner_repository="${2:?--runner-repo needs owner/repo}"; shift 2 ;;
       --runner-label) runner_labels+=("${2:?--runner-label needs a label}"); shift 2 ;;
       --runner-prepull) runner_prepull_images+=("${2:?--runner-prepull needs an image}"); shift 2 ;;
+      --grant)
+        [[ "${2:-}" =~ ^(all|full-disk-access|screen-recording|accessibility):/ ]] || die "--grant takes <all|full-disk-access|screen-recording|accessibility>:<absolute path>"
+        requested_grants+=("$2")
+        shift 2
+        ;;
       --notify-url) notify_url="${2:?--notify-url needs a url}"; shift 2 ;;
       --check) mode="check"; shift ;;
       --help | -h) usage; exit 0 ;;
@@ -116,7 +124,8 @@ run_checks() {
   for role in ${roles[@]+"${roles[@]}"}; do
     "check_role_$role"
   done
-  note "Privacy grants (Full Disk Access, Screen Recording, Accessibility) are never scripted; none is needed for the steps above"
+  check_privacy_grants
+  note "Privacy grants are switched on by you in System Settings; provision opens each pane and checks it, and never writes the privacy database"
 }
 
 print_report() {
@@ -144,6 +153,7 @@ apply() {
   forget_password
   step "Homebrew"; step_homebrew
   step "Tailscale"; step_tailscale
+  step "Privacy grants"; step_privacy_grants
   local role
   for role in ${roles[@]+"${roles[@]}"}; do
     step "Role: $role"; "step_role_$role"
