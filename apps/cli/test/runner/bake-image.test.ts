@@ -12,6 +12,7 @@ import {
   runnerConfigDirectory,
   type Sandbox,
   tartCalls,
+  writeConfig,
 } from "./runner-sandbox.ts";
 
 const bake = (sandbox: Sandbox, args: string[] = []) => runKitScript(sandbox, "bin/bake-image.sh", args, "0");
@@ -41,7 +42,8 @@ describe("bake-image.sh", () => {
     const calls = tartCalls(sandbox);
     expect(calls).toContain("pull ghcr.io/cirruslabs/ubuntu-runner-arm64:24.04");
     expect(calls).toContain("clone ghcr.io/cirruslabs/ubuntu-runner-arm64:24.04 runner-linux-staging");
-    expect(calls).toContain("set runner-linux-staging --cpu 4 --memory 4096 --disk-size 80");
+    expect(calls).toContain("set runner-linux-staging --cpu 4 --memory 4096");
+    expect(calls).toContain("set runner-linux-staging --disk-size 80");
     expect(calls).toContain(
       "exec -i runner-linux-staging sudo bash -s -- 2.338.0 https://example.invalid/actions-runner-linux-arm64-2.338.0.tar.gz arm64digest postgres:18 amazon/dynamodb-local:3.3.1",
     );
@@ -82,5 +84,30 @@ describe("bake-image.sh", () => {
     recordBake(sandbox, "2.338.0", 0);
     await bake(sandbox, ["--force"]);
     expect(tartCalls(sandbox)).toContain("rename runner-linux-staging runner-linux");
+  });
+
+  it("bakes the macOS image after the Linux one, with the macOS runner, no service images and the image's own disk", async () => {
+    writeConfig(sandbox, {
+      MACOS_SLOTS: "1",
+      MACOS_BASE_IMAGE: "ghcr.io/cirruslabs/macos-tahoe-xcode:26.5",
+      MACOS_GOLDEN_VM: "runner-macos",
+      MACOS_RUNNER_LABELS: "self-hosted,macOS,ARM64,app-swift",
+      MACOS_VM_MEMORY_MB: "8192",
+    });
+    addVm(sandbox, "runner-linux");
+    recordBake(sandbox, "2.338.0", 1);
+    const { status, output } = await bake(sandbox);
+    expect({ status, output }).toMatchObject({ status: 0 });
+    const calls = tartCalls(sandbox);
+    expect(calls).toContain("clone ghcr.io/cirruslabs/macos-tahoe-xcode:26.5 runner-macos-staging");
+    expect(calls).toContain("set runner-macos-staging --cpu 4 --memory 8192");
+    expect(calls.some((call) => call.startsWith("set runner-macos-staging --disk-size"))).toBe(false);
+    expect(calls).toContain(
+      "exec -i runner-macos-staging sudo bash -s -- 2.338.0 https://example.invalid/actions-runner-osx-arm64-2.338.0.tar.gz osxdigest",
+    );
+    expect(calls).toContain("rename runner-macos-staging runner-macos");
+    expect(calls.some((call) => call.startsWith("clone ghcr.io/cirruslabs/ubuntu-runner-arm64"))).toBe(false);
+    expect(execStdin(sandbox)).toBe(readFileSync(join(runnerRoleDirectory, "bake/prepare-macos-vm.sh"), "utf8"));
+    expect(readFileSync(join(runnerConfigDirectory(sandbox), "golden-macos.env"), "utf8")).toContain("BAKED_RUNNER_VERSION=2.338.0");
   });
 });

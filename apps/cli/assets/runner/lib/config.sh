@@ -18,6 +18,13 @@ readonly runner_required_keys=(
   RETRY_DELAY_SECONDS
   CREDENTIALS_FILE
   LOG_DIRECTORY
+  MACOS_SLOTS
+)
+readonly macos_required_keys=(
+  MACOS_BASE_IMAGE
+  MACOS_GOLDEN_VM
+  MACOS_RUNNER_LABELS
+  MACOS_VM_MEMORY_MB
 )
 
 fail() {
@@ -41,6 +48,11 @@ load_runner_config() {
   missing="$(missing_keys "${runner_required_keys[@]}")"
   [[ -z "$missing" ]] || fail "$runner_config_file is missing: ${missing% }"
   [[ -n "${PREPULL_IMAGES+set}" ]] || fail "$runner_config_file is missing: PREPULL_IMAGES"
+  [[ "$MACOS_SLOTS" =~ ^[01]$ ]] || fail "$runner_config_file: MACOS_SLOTS must be 0 or 1"
+  if ((MACOS_SLOTS > 0)); then
+    missing="$(missing_keys "${macos_required_keys[@]}")"
+    [[ -z "$missing" ]] || fail "$runner_config_file is missing: ${missing% }"
+  fi
 }
 
 has_runner_credentials() {
