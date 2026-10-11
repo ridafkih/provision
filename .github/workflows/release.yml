@@ -1,0 +1,46 @@
+name: release
+
+on:
+  push:
+    branches: ["**"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - run: bun install --frozen-lockfile
+      - run: bun run lint
+      - run: bun run typecheck
+      - run: bun run test
+      - run: bun run build
+      - name: Publish the binary
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          cd apps/cli/dist
+          cp provision provision-darwin-arm64
+          ./provision-darwin-arm64 --version
+          shasum -a 256 provision-darwin-arm64 > provision-darwin-arm64.sha256
+          version="$(./provision-darwin-arm64 --version)"
+          if [ "$BRANCH" = main ]; then
+            tag="v$version-$GITHUB_RUN_NUMBER"
+            flags=(--latest)
+          else
+            tag="$(printf '%s' "$BRANCH" | tr -c 'A-Za-z0-9.-' '-')-$GITHUB_RUN_NUMBER"
+            flags=(--prerelease --latest=false)
+          fi
+          gh release create "$tag" provision-darwin-arm64 provision-darwin-arm64.sha256 \
+            --target "$GITHUB_SHA" --title "$tag" --notes "provision $version built from $GITHUB_SHA on $BRANCH" "${flags[@]}"
