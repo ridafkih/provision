@@ -1,0 +1,14 @@
+set timeout 600
+set user_name [lindex $argv 0]
+set command [lrange $argv 1 end]
+set answer $env(PROVISION_ANSWER)
+unset env(PROVISION_ANSWER)
+log_user 1
+spawn -noecho {*}$command
+expect {
+  -nocase -re "user ?name\[^\r\n\]*:" { send -- "$user_name\r"; exp_continue }
+  -nocase -re "password\[^\r\n\]*:" { send -- "$answer\r"; exp_continue }
+  eof
+}
+lassign [wait] process_id spawn_id os_error exit_status
+exit $exit_status
