@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { addFakeCommand, createShellSandbox, disposeShellSandbox, runWithProvision, type ShellSandbox } from "./shell.ts";
@@ -52,6 +52,25 @@ const addConsoleUser = (sandbox: ShellSandbox) => {
   addFakeCommand(sandbox, "browser-open", 'printf "%s\\n" "$1" > "$HOME/opened"; touch "$HOME/tailscale/joined"');
 };
 
+const signIn = (sandbox: ShellSandbox, fake: string) =>
+  runWithProvision(
+    sandbox,
+    `homebrew_tailscale="${fake}"; open_command="${join(sandbox.bin, "browser-open")}"; wanted_hostname=rack-1; sign_in_to_tailnet`,
+  );
+
+const dnsFixedBy = (sandbox: ShellSandbox, fixingCall: string) => {
+  addFakeCommand(sandbox, "dscacheutil", '[ "$1" = -flushcache ] && exit 0; [ -e "$HOME/dns-fixed" ] && echo "ip_address: 140.82.112.3"; exit 0');
+  addFakeCommand(sandbox, "killall", "exit 0");
+  const fake = join(sandbox.bin, "tailscale-daemon");
+  writeFileSync(fake, `#!/bin/bash\nprintf '%s\\n' "$*" >> "$HOME/tailscale-calls"\n[ "$*" = "${fixingCall}" ] && touch "$HOME/dns-fixed"\nexit 0\n`, { mode: 0o755 });
+  return fake;
+};
+
+const applyOrder = (sandbox: ShellSandbox) => {
+  const body = runWithProvision(sandbox, "declare -f apply").stdout;
+  return [...body.matchAll(/\b(collect_credentials|require_name_resolution|fetch_public_keys|step_[a-z_]+|forget_password)\b/g)].map((match) => match[1]);
+};
+
 describe("recovering a half-finished run", { timeout: 30_000 }, () => {
   let sandbox: ShellSandbox;
 
@@ -63,17 +82,12 @@ describe("recovering a half-finished run", { timeout: 30_000 }, () => {
   afterEach(() => disposeShellSandbox(sandbox));
 
   describe("Tailscale sign-in", () => {
-    const signIn = (fake: string) =>
-      runWithProvision(
-        sandbox,
-        `homebrew_tailscale="${fake}"; open_command="${join(sandbox.bin, "browser-open")}"; wanted_hostname=rack-1; sign_in_to_tailnet`,
-      );
 
     it("opens the sign-in page in the console user's browser session, prints it big with a QR code, and waits until it joins", () => {
       const fake = addFakeTailscale(sandbox);
       addConsoleUser(sandbox);
-      const result = signIn(fake);
-      expect(result.status, result.stderr).toBe(0);
+      const result = signIn(sandbox, fake);
+      expect({ status: result.status, stderr: result.stderr }).toMatchObject({ status: 0 });
       expect(readFileSync(join(sandbox.home, "opened"), "utf8").trim()).toBe(loginUrl);
       expect(readFileSync(join(sandbox.home, "sudo.log"), "utf8")).toContain(`-n launchctl asuser 501 sudo -u rack ${join(sandbox.bin, "browser-open")} ${loginUrl}`);
       expect(result.stdout).toContain(`    ${loginUrl}\n`);
@@ -87,7 +101,7 @@ describe("recovering a half-finished run", { timeout: 30_000 }, () => {
     it("starts tailscale up again when the daemon was not ready the first time", () => {
       const fake = addFakeTailscale(sandbox, true);
       addConsoleUser(sandbox);
-      const result = signIn(fake);
+      const result = signIn(sandbox, fake);
       expect({ status: result.status, stderr: result.stderr }).toEqual({ status: 0, stderr: "" });
       expect(readFileSync(join(sandbox.home, "tailscale/calls"), "utf8").match(/^up /gm)).toHaveLength(2);
     });
@@ -100,25 +114,18 @@ describe("recovering a half-finished run", { timeout: 30_000 }, () => {
         ["-c", `set -euo pipefail; source "${join(import.meta.dirname, "../src/provision.sh")}"; homebrew_tailscale="${fake}"; (sleep 3; touch "$HOME/tailscale/joined") & sign_in_to_tailnet`],
         { encoding: "utf8", env: { PATH: `${sandbox.bin}:/usr/bin:/bin:/usr/sbin:/sbin`, HOME: sandbox.home, USER: "rack" } },
       );
-      expect(signInWithoutConsole.status, signInWithoutConsole.stderr).toBe(0);
+      expect({ status: signInWithoutConsole.status, stderr: signInWithoutConsole.stderr }).toMatchObject({ status: 0 });
       expect(signInWithoutConsole.stdout).toContain("Open it on any device");
       expect(signInWithoutConsole.stdout).toContain(loginUrl);
     });
   });
 
   describe("DNS broken by an unauthenticated tailscaled", () => {
-    const dnsFixedBy = (sandbox: ShellSandbox, fixingCall: string) => {
-      addFakeCommand(sandbox, "dscacheutil", '[ "$1" = -flushcache ] && exit 0; [ -e "$HOME/dns-fixed" ] && echo "ip_address: 140.82.112.3"; exit 0');
-      addFakeCommand(sandbox, "killall", "exit 0");
-      const fake = join(sandbox.bin, "tailscale-daemon");
-      writeFileSync(fake, `#!/bin/bash\nprintf '%s\\n' "$*" >> "$HOME/tailscale-calls"\n[ "$*" = "${fixingCall}" ] && touch "$HOME/dns-fixed"\nexit 0\n`, { mode: 0o755 });
-      return fake;
-    };
 
     it("takes Tailscale down before any download when that is what brings DNS back", () => {
       const fake = dnsFixedBy(sandbox, "down");
       const result = runWithProvision(sandbox, `homebrew_tailscale="${fake}"; require_name_resolution "before setup starts"`);
-      expect(result.status, result.stderr).toBe(0);
+      expect({ status: result.status, stderr: result.stderr }).toMatchObject({ status: 0 });
       expect(result.stdout).toContain("took Tailscale down until sign-in, so DNS works again");
       expect(readFileSync(join(sandbox.home, "tailscale-calls"), "utf8")).toBe("set --accept-dns=false\ndown\n");
     });
@@ -156,13 +163,9 @@ describe("recovering a half-finished run", { timeout: 30_000 }, () => {
   });
 
   describe("step order", () => {
-    const applyOrder = () => {
-      const body = runWithProvision(sandbox, "declare -f apply").stdout;
-      return [...body.matchAll(/\b(collect_credentials|require_name_resolution|fetch_public_keys|step_[a-z_]+|"step_role_\$role"|forget_password)\b/g)].map((match) => match[1]);
-    };
 
     it("collects the password first, repairs DNS before the first download, and does every download before Tailscale", () => {
-      const order = applyOrder();
+      const order = applyOrder(sandbox);
       expect(order.slice(0, 3)).toEqual(["collect_credentials", "require_name_resolution", "fetch_public_keys"]);
       const tailscale = order.indexOf("step_tailscale");
       for (const download of ["fetch_public_keys", "step_ssh", "step_homebrew"]) expect(order.indexOf(download)).toBeLessThan(tailscale);
