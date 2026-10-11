@@ -1,0 +1,16 @@
+{
+  "name": "@provision/site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "deploy": "bun run --cwd ../cli build && wrangler deploy"
+  },
+  "dependencies": {
+    "@provision/cli": "workspace:*"
+  },
+  "devDependencies": {
+    "wrangler": "^4.149.0"
+  }
+}

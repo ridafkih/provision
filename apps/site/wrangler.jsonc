@@ -1,0 +1,11 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "provision",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": false,
+  "preview_urls": false,
+  "rules": [{ "type": "Text", "globs": ["**/*.sh"], "fallthrough": false }],
+  "routes": [{ "pattern": "provision.example.com", "custom_domain": true }],
+  "observability": { "enabled": false }
+}
