@@ -3,7 +3,9 @@ import { run, type Machine } from "../../core/shell";
 import { TASKS } from "../../slim/catalog";
 import { blocker, inspectAll, openEnv } from "../../slim/engine";
 import { select } from "../../slim/select";
-import type { Tier } from "../../slim/task";
+import type { Context } from "../../slim/context";
+import { loadJournal, pending, type Journal } from "../../slim/journal";
+import { TIERS, type Inspection, type State, type Task, type Tier } from "../../slim/task";
 import type { Setup, SetupStep } from "../context";
 import { hasRole } from "../options";
 import { isListening } from "../system";
@@ -23,16 +25,32 @@ export function unconfirmedRemoteAccess(machine: Machine) {
 
 export type SlimState = { pending: string[]; waitingForSip: string[] };
 
+const isOpen = (state: State) => state === "todo" || state === "partial";
+
+export function slimStateOf(tasks: Task[], inspections: Map<string, Inspection>, context: Context): SlimState {
+  const open = tasks.filter((task) => isOpen(inspections.get(task.id)?.state ?? "absent"));
+  return {
+    pending: open.filter((task) => !blocker(task, context)).map((task) => task.id),
+    waitingForSip: open.filter((task) => blocker(task, context)).map((task) => task.id),
+  };
+}
+
 export async function slimState(profile: Tier): Promise<SlimState> {
   const environment = await openEnv();
   const tasks = select(TASKS, { profile });
-  const inspections = await inspectAll(environment, tasks);
-  const open = tasks.filter((task) => (inspections.get(task.id)?.apply.length ?? 0) > 0);
-  return {
-    pending: open.filter((task) => !blocker(task, environment.ctx)).map((task) => task.id),
-    waitingForSip: open.filter((task) => blocker(task, environment.ctx)).map((task) => task.id),
-  };
+  return slimStateOf(tasks, await inspectAll(environment, tasks), environment.ctx);
 }
+
+export const appliedProfile = (journal: Journal): Tier | undefined => {
+  const appliedTiers = new Set(pending(journal).flatMap((entry) => TASKS.filter((task) => task.id === entry.task).map((task) => task.tier)));
+  return TIERS.toReversed().find((tier) => appliedTiers.has(tier));
+};
+
+export const expectedSlimProfile = (setup: Setup, journal: Journal): Tier => {
+  const forRole = slimProfileFor(setup);
+  const applied = appliedProfile(journal);
+  return applied && TIERS.indexOf(applied) > TIERS.indexOf(forRole) ? applied : forRole;
+};
 
 export const selfCommand = () => (Bun.main.startsWith("/$bunfs/") ? [process.execPath] : [process.execPath, Bun.main]);
 
@@ -52,7 +70,7 @@ export const slim: SetupStep = {
   },
   async check(setup, checklist) {
     if (setup.options.isSlimSkipped) return checklist.note("Slimming skipped (--no-slim)");
-    const profile = slimProfileFor(setup);
+    const profile = expectedSlimProfile(setup, await loadJournal());
     const state = await slimState(profile);
     if (state.pending.length > 0) checklist.miss(`Slimmed to the ${profile} profile`, `rerun provision (still to do: ${state.pending.join(", ")})`);
     else checklist.pass(`Slimmed to the ${profile} profile`);
