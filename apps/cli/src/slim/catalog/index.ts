@@ -1,4 +1,5 @@
 import { out } from "../../core/shell";
+import { softwareUpdateDomain, softwareUpdatePolicy } from "../../core/software-update";
 import { summarize, type Item, type Step, type Task } from "../task";
 import { power, prefs, remove, services } from "./kinds";
 import { keepTerminal } from "./keep-terminal";
@@ -599,15 +600,12 @@ export const TASKS: Task[] = [
     id: "updates",
     group: "host",
     title: "Pin macOS & app versions",
-    summary: "Keep checking for updates and installing security data (XProtect, RSR), but never install macOS or App Store updates on their own.",
+    summary: "Keep checking for and downloading updates and installing security data (XProtect, RSR), but never install macOS or App Store updates on their own. Automatic checking itself is setup's (softwareupdate --schedule).",
     tier: "host",
     caveat: "softwareupdated keeps running; you upgrade macOS and Xcode deliberately (softwareupdate -i, xcodes).",
     scope: "system",
     set: [
-      { domain: "/Library/Preferences/com.apple.SoftwareUpdate", key: "AutomaticCheckEnabled", value: true },
-      { domain: "/Library/Preferences/com.apple.SoftwareUpdate", key: "CriticalUpdateInstall", value: true },
-      { domain: "/Library/Preferences/com.apple.SoftwareUpdate", key: "ConfigDataInstall", value: true },
-      { domain: "/Library/Preferences/com.apple.SoftwareUpdate", key: "AutomaticallyInstallMacOSUpdates", value: false },
+      ...Object.entries(softwareUpdatePolicy).map(([key, value]) => ({ domain: softwareUpdateDomain, key, value })),
       { domain: "/Library/Preferences/com.apple.commerce", key: "AutoUpdate", value: false },
     ],
   }),
