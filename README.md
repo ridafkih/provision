@@ -2,15 +2,21 @@
 
 One command that turns a fresh Mac into a headless machine you can rack: no display, keyboard or mouse, reachable over SSH, Screen Sharing and Tailscale, and back on its own after a power cut.
 
-```
-curl -fsSL <installer url> | bash
-```
+## Quick start
 
-`bun run build` writes one self-contained installer per profile to `apps/cli/dist/`: `provision.sh` takes every option itself, and `rida.sh` already authorizes the SSH keys on github.com/ridafkih plus Worm's key. Host the file anywhere public (it holds no secrets), or copy it over and run `bash rida.sh`. The generic one takes options after `-s --`:
+On a fresh Mac, in Terminal:
 
 ```
-curl -fsSL <installer url> | bash -s -- --github <you> --hostname rack-1
+curl -fsSL https://raw.githubusercontent.com/ridafkih/provision/main/install.sh | bash -s -- --github <your GitHub user>
 ```
+
+It downloads this repository's `main`, unpacks the kit to `~/.provision/kit` and runs it. `--github` authorizes the SSH keys you publish at github.com/<user>.keys; every other option below works the same way. `--profile <name>` adds the arguments in `apps/cli/profiles/<name>.args` first, so a profile can hold your usual keys:
+
+```
+curl -fsSL https://raw.githubusercontent.com/ridafkih/provision/main/install.sh | bash -s -- --profile rida
+```
+
+Without network access to GitHub, `bun run build` writes one self-contained installer per profile to `apps/cli/dist/` (`provision.sh`, plus `<profile>.sh`); copy one over and run `bash provision.sh --github <you>`.
 
 ## The flow
 
@@ -64,7 +70,7 @@ Roles add a job on top of the base layer:
 Example, run over SSH after racking:
 
 ```
-provision --github ridafkih --role runner --runner-repo example/app --runner-label app \
+provision --github <you> --role runner --runner-repo example/app --runner-label app \
   --runner-prepull postgres:18 --runner-prepull amazon/dynamodb-local:3.3.1 \
   --runner-prepull nsmithuk/local-kms:3.12.0 --runner-prepull zricethezav/gitleaks:v8.30.1
 ```
