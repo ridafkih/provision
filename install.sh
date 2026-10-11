@@ -33,4 +33,7 @@ fi
 mkdir -p -m 700 "$provision_home"
 rm -rf "$provision_home/kit"
 mv "$staging/apps/cli/src" "$provision_home/kit"
+if { : </dev/tty; } 2>/dev/null; then
+  exec /bin/bash "$provision_home/kit/provision.sh" ${profile_arguments[@]+"${profile_arguments[@]}"} ${provision_arguments[@]+"${provision_arguments[@]}"} </dev/tty
+fi
 exec /bin/bash "$provision_home/kit/provision.sh" ${profile_arguments[@]+"${profile_arguments[@]}"} ${provision_arguments[@]+"${provision_arguments[@]}"}

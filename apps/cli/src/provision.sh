@@ -137,31 +137,33 @@ print_report() {
 }
 
 apply() {
-  if ! sudo -n true 2>/dev/null || needs_unattended_boot_password; then
-    prompt_password_once
-  fi
-  keep_sudo_alive
+  step "Before anything changes"
+  collect_credentials
+  require_name_resolution "before setup starts"
+  fetch_public_keys
   step "Name"; step_hostname
   step "Power and recovery"; step_power
   step "Headless"; step_headless
   step "macOS updates"; step_updates
   step "Privacy and Spotlight"; step_privacy
   step "Firewall"; step_firewall
+  require_name_resolution "after the firewall step"
   step "SSH"; step_ssh
   step "Sharing"; step_sharing
   step "Unattended boot"; step_unattended_boot
   forget_password
   step "Homebrew"; step_homebrew
-  step "Tailscale"; step_tailscale
-  step "Privacy grants"; step_privacy_grants
   local role
   for role in ${roles[@]+"${roles[@]}"}; do
     step "Role: $role"; "step_role_$role"
   done
+  step "Tailscale"; step_tailscale
+  step "Privacy grants"; step_privacy_grants
   step "provision command"; install_command
 }
 
 main() {
+  [[ -t 0 ]] || { exec </dev/tty; } 2>/dev/null || true
   require_macos_admin
   if (($# == 0)); then
     load_saved_arguments
