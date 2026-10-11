@@ -1,35 +1,29 @@
 #!/bin/bash
 set -euo pipefail
 
-archive_url="https://github.com/ridafkih/provision/archive/refs/heads/main.tar.gz"
-profile=""
+binary_url="https://github.com/ridafkih/provision/releases/latest/download/provision-darwin-arm64"
 provision_arguments=()
 
 while (($# > 0)); do
   case "$1" in
-    --profile) profile="${2:?--profile needs a name}"; shift 2 ;;
-    --archive) archive_url="${2:?--archive needs a url}"; shift 2 ;;
+    --binary) binary_url="${2:?--binary needs a url}"; shift 2 ;;
     *) provision_arguments+=("$1"); shift ;;
   esac
 done
 
 [[ "$(uname -s)" == Darwin ]] || { printf 'provision runs on macOS only\n' >&2; exit 1; }
-[[ -z "$profile" || "$profile" =~ ^[a-z0-9-]+$ ]] || { printf 'install: bad profile name %s\n' "$profile" >&2; exit 1; }
+[[ "$(uname -m)" == arm64 ]] || { printf 'provision needs a Mac with Apple silicon\n' >&2; exit 1; }
 
 staging="$(mktemp -d)"
-curl -fsSL "$archive_url" | tar -xzf - -C "$staging" --strip-components=1
+curl -fsSL "$binary_url" -o "$staging/provision"
+curl -fsSL "$binary_url.sha256" -o "$staging/provision.sha256"
+expected="$(awk '{print $1}' "$staging/provision.sha256")"
+actual="$(shasum -a 256 "$staging/provision" | awk '{print $1}')"
+[[ -n "$expected" && "$expected" == "$actual" ]] || { printf 'install: the downloaded provision binary does not match its checksum\n' >&2; exit 1; }
+chmod 755 "$staging/provision"
 
-profile_arguments=()
-if [[ -n "$profile" ]]; then
-  profile_file="$staging/apps/cli/profiles/$profile.args"
-  [[ -f "$profile_file" ]] || { printf 'install: no profile named %s\n' "$profile" >&2; exit 1; }
-  while IFS= read -r argument || [[ -n "$argument" ]]; do
-    [[ -z "$argument" ]] || profile_arguments+=("$argument")
-  done <"$profile_file"
-fi
-
-provision="$staging/apps/cli/src/provision.sh"
+provision="$staging/provision"
 if { : </dev/tty; } 2>/dev/null; then
-  exec /bin/bash "$provision" ${profile_arguments[@]+"${profile_arguments[@]}"} ${provision_arguments[@]+"${provision_arguments[@]}"} </dev/tty
+  exec "$provision" ${provision_arguments[@]+"${provision_arguments[@]}"} </dev/tty
 fi
-exec /bin/bash "$provision" ${profile_arguments[@]+"${profile_arguments[@]}"} ${provision_arguments[@]+"${provision_arguments[@]}"}
+exec "$provision" ${provision_arguments[@]+"${provision_arguments[@]}"}
