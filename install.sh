@@ -16,9 +16,7 @@ done
 [[ "$(uname -s)" == Darwin ]] || { printf 'provision runs on macOS only\n' >&2; exit 1; }
 [[ -z "$profile" || "$profile" =~ ^[a-z0-9-]+$ ]] || { printf 'install: bad profile name %s\n' "$profile" >&2; exit 1; }
 
-provision_home="$HOME/.provision"
 staging="$(mktemp -d)"
-trap 'rm -rf "$staging"' EXIT
 curl -fsSL "$archive_url" | tar -xzf - -C "$staging" --strip-components=1
 
 profile_arguments=()
@@ -30,10 +28,8 @@ if [[ -n "$profile" ]]; then
   done <"$profile_file"
 fi
 
-mkdir -p -m 700 "$provision_home"
-rm -rf "$provision_home/kit"
-mv "$staging/apps/cli/src" "$provision_home/kit"
+provision="$staging/apps/cli/src/provision.sh"
 if { : </dev/tty; } 2>/dev/null; then
-  exec /bin/bash "$provision_home/kit/provision.sh" ${profile_arguments[@]+"${profile_arguments[@]}"} ${provision_arguments[@]+"${provision_arguments[@]}"} </dev/tty
+  exec /bin/bash "$provision" ${profile_arguments[@]+"${profile_arguments[@]}"} ${provision_arguments[@]+"${provision_arguments[@]}"} </dev/tty
 fi
-exec /bin/bash "$provision_home/kit/provision.sh" ${profile_arguments[@]+"${profile_arguments[@]}"} ${provision_arguments[@]+"${provision_arguments[@]}"}
+exec /bin/bash "$provision" ${profile_arguments[@]+"${profile_arguments[@]}"} ${provision_arguments[@]+"${provision_arguments[@]}"}

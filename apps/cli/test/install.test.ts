@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createShellSandbox, disposeShellSandbox, type ShellSandbox } from "./shell.ts";
@@ -33,14 +33,23 @@ describe("install.sh", () => {
 
   afterEach(() => disposeShellSandbox(sandbox));
 
-  it("unpacks the kit from the repository archive and puts the profile's arguments before the caller's", () => {
+  it("unpacks the kit from the repository archive into a temporary directory and puts the profile's arguments before the caller's", () => {
     const result = install(sandbox, ["--archive", makeArchive(sandbox), "--profile", "owner", "--role", "runner"]);
     expect(result.stdout).toBe("--github|owner|--ssh-key|ssh-ed25519 KEY it's mine|--role|runner|");
-    expect(spawnSync("test", ["-f", join(sandbox.home, ".provision/kit/provision.sh")]).status).toBe(0);
+    expect(spawnSync("test", ["-e", join(sandbox.home, ".provision")]).status).toBe(1);
   });
 
   it("passes the caller's arguments through when no profile is named", () => {
     const result = install(sandbox, ["--archive", makeArchive(sandbox), "--github", "someone"]);
+    expect(result.stdout).toBe("--github|someone|");
+  });
+
+  it("runs even when a root-owned ~/.provision is unreadable to its owner", () => {
+    const archive = makeArchive(sandbox);
+    mkdirSync(join(sandbox.home, ".provision/kit"), { recursive: true });
+    chmodSync(join(sandbox.home, ".provision"), 0o000);
+    const result = install(sandbox, ["--archive", archive, "--github", "someone"]);
+    chmodSync(join(sandbox.home, ".provision"), 0o700);
     expect(result.stdout).toBe("--github|someone|");
   });
 

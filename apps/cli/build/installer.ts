@@ -12,16 +12,12 @@ export const renderInstaller = ({ payloadBase64, profileArguments }: { payloadBa
     "#!/bin/bash",
     "set -euo pipefail",
     `[[ "$(uname -s)" == Darwin ]] || { printf 'provision runs on macOS only\\n' >&2; exit 1; }`,
-    'provision_home="$HOME/.provision"',
     'staging="$(mktemp -d)"',
     `/usr/bin/base64 -D <<'${payloadDelimiter}' | /usr/bin/tar -xzf - -C "$staging"`,
     ...wrapLines(payloadBase64, 76),
     payloadDelimiter,
-    'mkdir -p -m 700 "$provision_home"',
-    'rm -rf "$provision_home/kit"',
-    'mv "$staging" "$provision_home/kit"',
     `profile_arguments=(${profileArguments.map(shellQuote).join(" ")})`,
-    'exec /bin/bash "$provision_home/kit/provision.sh" ${profile_arguments[@]+"${profile_arguments[@]}"} "$@"',
+    'exec /bin/bash "$staging/provision.sh" ${profile_arguments[@]+"${profile_arguments[@]}"} "$@"',
     "",
   ].join("\n");
 };
