@@ -3,13 +3,13 @@
 One command that turns a fresh Mac into a headless machine you can rack: no display, keyboard or mouse, reachable over SSH, Screen Sharing and Tailscale, and back on its own after a power cut.
 
 ```
-curl -fsSL https://provision.example.com/rida | bash
+curl -fsSL <installer url> | bash
 ```
 
-`/rida` is a profile: it authorizes the SSH keys on github.com/ridafkih plus Worm's key. The generic installer at `/` takes the same options itself:
+`bun run build` writes one self-contained installer per profile to `apps/cli/dist/`: `provision.sh` takes every option itself, and `rida.sh` already authorizes the SSH keys on github.com/ridafkih plus Worm's key. Host the file anywhere public (it holds no secrets), or copy it over and run `bash rida.sh`. The generic one takes options after `-s --`:
 
 ```
-curl -fsSL https://provision.example.com | bash -s -- --github <you> --hostname rack-1
+curl -fsSL <installer url> | bash -s -- --github <you> --hostname rack-1
 ```
 
 ## The flow
@@ -90,7 +90,6 @@ provision --github ridafkih --role runner --runner-repo example/app --runner-lab
 | `apps/cli/src/roles/` | The worker and runner roles; the runner's VM scripts live in `roles/runner/`. |
 | `apps/cli/build/` | Bundles `src` into one self-extracting installer per profile (`dist/provision.sh`, `dist/<profile>.sh`). |
 | `apps/cli/profiles/` | One argument per line. |
-| `apps/site/` | The Cloudflare Worker that serves the installers. `bun run --cwd apps/site deploy` builds and deploys it. |
 
 ```
 bun install
