@@ -2,5 +2,6 @@
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["typescript", "unicorn", "import", "oxc", "vitest"],
   "categories": { "correctness": "error", "suspicious": "warn", "perf": "warn" },
-  "ignorePatterns": ["**/dist/**", "**/node_modules/**", "**/.turbo/**", "**/.wrangler/**"]
+  "ignorePatterns": ["**/dist/**", "**/node_modules/**", "**/.turbo/**", "**/.wrangler/**"],
+  "overrides": [{ "files": ["apps/macslim/src/**"], "rules": { "no-await-in-loop": "off" } }]
 }
