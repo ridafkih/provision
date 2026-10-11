@@ -12,7 +12,7 @@ pmset_value() {
 }
 
 system_default_value() {
-  sudo defaults read "$1" "$2" 2>/dev/null || true
+  defaults read "$1" "$2" 2>/dev/null || sudo defaults read "$1" "$2" 2>/dev/null || true
 }
 
 ensure_system_bool() {

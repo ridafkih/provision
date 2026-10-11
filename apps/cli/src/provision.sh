@@ -172,11 +172,10 @@ main() {
     collect_credentials
     repair_provision_home
   fi
-  if (($# == 0)); then
+  if (($# == 0)) || [[ "$*" == "--check" ]]; then
     load_saved_arguments
-  else
-    parse_arguments "$@"
   fi
+  (($# == 0)) || parse_arguments "$@"
   if [[ "$mode" == check ]]; then
     print_report
     return 0

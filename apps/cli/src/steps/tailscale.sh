@@ -17,8 +17,16 @@ run_tailscale() {
   fi
 }
 
+tailscale_status() {
+  if uses_tailscale_daemon; then
+    "$homebrew_tailscale" status --json 2>/dev/null || sudo "$homebrew_tailscale" status --json 2>/dev/null
+  else
+    "$app_tailscale" status --json 2>/dev/null
+  fi
+}
+
 tailscale_field() {
-  run_tailscale status --json 2>/dev/null | /usr/bin/jq --raw-output "$1" 2>/dev/null || true
+  tailscale_status | /usr/bin/jq --raw-output "$1" 2>/dev/null || true
 }
 
 is_on_tailnet() {
@@ -143,7 +151,7 @@ check_tailscale() {
     miss "On the tailnet" "run the same command again and sign in to Tailscale"
     return 0
   fi
-  pass "On the tailnet as $(tailscale_field '.Self.DNSName' | sed 's/\.$//') ($(run_tailscale ip -4 2>/dev/null | head -n 1)); reconnects on any network"
+  pass "On the tailnet as $(tailscale_field '.Self.DNSName' | sed 's/\.$//') ($(tailscale_field '.TailscaleIPs[0] // empty')); reconnects on any network"
   if [[ "$(tailscale_field '.Self.KeyExpiry // empty')" == "" ]]; then
     pass "Tailscale key never expires"
   else

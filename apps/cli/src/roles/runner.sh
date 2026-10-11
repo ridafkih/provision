@@ -117,7 +117,7 @@ step_role_runner() {
 check_role_runner() {
   check_role_worker
   local slots
-  slots="$(sed -n 's/^LINUX_SLOTS=//p' "$runner_directory/runner.env" 2>/dev/null)"
+  slots="$(sed -n 's/^LINUX_SLOTS=//p' "$runner_directory/runner.env" 2>/dev/null || true)"
   [[ -n "$slots" ]] \
     && pass "GitHub runner for $runner_repository: $slots VM slots" \
     || miss "GitHub runner configured" "rerun provision --role runner --runner-repo <owner/repo>"

@@ -84,7 +84,7 @@ check_ssh() {
   is_listening 22 \
     && pass "SSH on: ssh $USER@$(scutil --get LocalHostName).local" \
     || waiting_on_owner "SSH on" "System Settings > General > Sharing > Remote Login"
-  sudo sshd -T 2>/dev/null | grep -qx 'passwordauthentication no' && ((key_count > 0)) \
+  [[ "$(cat "$keys_only_drop_in" 2>/dev/null)" == "$keys_only_settings" ]] && ((key_count > 0)) \
     && pass "SSH takes keys only ($key_count authorized)" \
     || miss "SSH takes keys only" "rerun provision with --github <user>"
 }

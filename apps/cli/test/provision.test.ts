@@ -128,6 +128,13 @@ describe("provision", () => {
       expect(runWithProvision(sandbox, "runner_slot_count").stdout.trim()).toBe(slots);
     });
 
+    it("reports a runner role that was never set up instead of stopping the checklist", () => {
+      addFakeCommand(sandbox, "tart", "exit 1");
+      const result = runWithProvision(sandbox, "parse_arguments --role runner --runner-repo o/r; check_role_runner; render_checklist");
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain("GitHub runner configured");
+    });
+
     it("refuses a host too small for one runner VM", () => {
       fakeHost(sandbox, 8 * 1024 ** 3, 8);
       const result = runWithProvision(sandbox, "runner_slot_count");
