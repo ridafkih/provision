@@ -77,7 +77,7 @@ read_tcc_database() {
     return 0
   fi
   [[ -f "$tcc_probe_key" ]] || return 1
-  ssh -i "$tcc_probe_key" -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new \
+  ssh -n -i "$tcc_probe_key" -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new \
     -o UserKnownHostsFile="$tcc_probe_known_hosts" "$USER@127.0.0.1" \
     "/usr/bin/sqlite3 '$system_tcc_database' \"$sql\"" 2>/dev/null
 }
