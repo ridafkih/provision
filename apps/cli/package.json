@@ -1,0 +1,10 @@
+{
+  "name": "@provision/cli",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun build/bundle.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  }
+}
