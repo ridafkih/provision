@@ -1,6 +1,6 @@
 # provision
 
-One command that turns a fresh Mac into a headless machine you can rack: no display, keyboard or mouse, reachable over SSH, Screen Sharing and Tailscale, and back on its own after a power cut.
+One command that turns a fresh Mac into a headless machine you can rack: no display, keyboard or mouse, reachable over SSH, Screen Sharing and Tailscale, back on its own after a power cut, and slimmed down to what a headless host needs.
 
 ## Quick start
 
@@ -10,13 +10,17 @@ On a fresh Mac, in Terminal:
 curl -fsSL https://raw.githubusercontent.com/ridafkih/provision/main/install.sh | bash -s -- --github <your GitHub user>
 ```
 
-It downloads this repository's `main`, unpacks the kit to `~/.provision/kit` and runs it. `--github` authorizes the SSH keys you publish at github.com/<user>.keys; every other option below works the same way. `--profile <name>` adds the arguments in `apps/cli/profiles/<name>.args` first, so a profile can hold your usual keys:
+It downloads the latest released `provision` binary (Apple silicon), checks it against its published SHA-256 and runs it. `--github` authorizes the SSH keys you publish at github.com/<user>.keys; every other option below works the same way. `--profile <name>` adds the arguments in `apps/cli/assets/profiles/<name>.args` first (profiles are built into the binary), so a profile can hold your usual keys:
 
 ```
 curl -fsSL https://raw.githubusercontent.com/ridafkih/provision/main/install.sh | bash -s -- --profile rida
 ```
 
-Without network access to GitHub, `bun run build` writes one self-contained installer per profile to `apps/cli/dist/` (`provision.sh`, plus `<profile>.sh`); copy one over and run `bash provision.sh --github <you>`.
+Without the one-liner, copy the binary over yourself: `bun run build` writes it to `apps/cli/dist/provision`, and `./provision --profile rida` on the Mac does the same as the command above.
+
+### How the binary reaches a fresh Mac
+
+A fresh Mac has no Bun, so provision ships as one compiled arm64 executable. Every push to `main` runs `.github/workflows/release.yml` on a GitHub-hosted Apple silicon runner: lint, type-check, the full test suite, then `bun build --compile`, an ad-hoc signature, and a GitHub release holding `provision-darwin-arm64` and its `.sha256`. `install.sh` fetches `releases/latest/download/provision-darwin-arm64` with `curl`, so nothing on the Mac builds, installs a toolchain or reaches the npm registry; the download is one file, verified, with no quarantine flag. Building on the Mac instead would mean installing Bun and resolving packages during setup, on the very machine whose network and DNS provision is still repairing. Branches publish pre-releases (never `latest`) that `install.sh --binary <url>` can try before they land.
 
 ## The flow
 
@@ -24,9 +28,12 @@ Without network access to GitHub, `bun run build` writes one self-contained inst
 2. Open Terminal and run the command. It asks for your password once, in the terminal. The password unlocks sudo, turns FileVault off and turns on automatic login; it is kept in memory for those steps only and never written or sent.
 3. Tailscale's sign-in page opens in the browser by itself. Sign in and approve the Mac; the command waits until it is on the tailnet.
 4. For each `--grant`, System Settings opens at the right privacy pane and Finder shows the item. Drag it into the list and switch it on; the command checks the grant took before it moves on.
-5. Read the ready-to-rack checklist. Do the items marked `!`, then unplug the display, keyboard and mouse and rack it.
+5. Once SSH answers, automatic login is set and the Mac is on the tailnet, provision slims it (see Slimming). It skips this until all of those are confirmed, so a half-finished run never leaves you locked out.
+6. Read the ready-to-rack checklist. Do the items marked `!`, then unplug the display, keyboard and mouse and rack it.
 
-Run `provision` again any time (it is linked into `/usr/local/bin`); with no options it replays the options of the last run. `provision --check` only prints the checklist.
+Run `provision` again any time (it is copied to `~/.provision/bin` and linked into `/usr/local/bin`); with no options it replays the options of the last run. Every step, slimming included, checks before it changes anything, so a rerun only touches what drifted. `provision --check` only prints the checklist, slim state included, and works over SSH without sudo.
+
+`provision tui` opens the same thing interactively: a Setup tab with every step and what its check found, and a Slim tab with every slim task, its state and the exact commands it would run. Pick what to apply with space and press `x`; setup steps run in the terminal as a normal run would, and slim tasks run under `sudo provision slim apply`.
 
 ## What it sets
 
@@ -40,6 +47,7 @@ Run `provision` again any time (it is linked into `/usr/local/bin`); with no opt
 | macOS updates | Download only. They never install or restart on their own; security responses and system data files still install. |
 | Privacy and noise | Spotlight indexing off, guest account off, analytics and crash submission off, firewall and stealth mode on, file, printer and internet sharing off. |
 | Tooling | Homebrew (with the Xcode Command Line Tools it installs). |
+| Slimming | Telemetry, Apple Intelligence, Siri, suggestions, media analysis and consumer services off; for VM hosts also iCloud, the App Store, Mail and Messages, Continuity, the desktop shell, enterprise services, Spotlight's UI, Time Machine and the bundled creative apps (about 8 GB). See Slimming. |
 
 Every step is idempotent and prints `set:` or `unchanged:`. The password is the only thing it asks for, and it asks first; every later `sudo` is non-interactive. Before the first download it checks that the Mac can look up github.com and repairs DNS if an unsigned-in Tailscale broke it, so running the same command again picks up wherever a previous run stopped.
 
@@ -49,8 +57,27 @@ Full Disk Access, Screen Recording and Accessibility can only be switched on by 
 
 For a Mac you drive over SSH, the client to grant is `/usr/libexec/sshd-keygen-wrapper` (the same switch as "Allow full disk access for remote users" under Remote Login). The `rida` profile asks for all three on it.
 
+## Slimming
+
+The last step runs `provision slim apply` for the role: `--role runner` and `--role worker` get the `host` profile, any other Mac the `lean` one. `--no-slim` skips it. On its own:
+
+```
+provision slim status            state of every task
+provision slim plan -p host      every command apply would run, nothing changed
+sudo provision slim apply -p host
+sudo provision slim restore      undo everything slimming changed
+provision slim protected         what it never touches
+```
+
+It only ever uses `launchctl disable` and `bootout`, `defaults`, `pmset`, `mdutil`, and deleting the bundled apps in `/Applications`. Every change except the deleted apps is journaled in `/var/db/macslim/journal.json` with the steps that undo it. It never mounts, edits or re-seals the system volume and never asks for `csrutil authenticated-root disable`: on 2026-10-11 editing the sealed volume left a Mac stuck at boot twice, and the tests now fail if any step could touch it.
+
+Services that launchd only keeps disabled with System Integrity Protection off are skipped while SIP is on, which is the default; the checklist lists them. provision never turns SIP off.
+
+It never disables what a racked host needs: the GUI login session (WindowManager, Control Center and the menu bar agent, without which automatic login falls back to the password prompt), Virtualization.framework and vmnet (`bootpd`, `NetworkSharing`), sshd, Screen Sharing, software update, networking and DNS, the security daemons, Xcode and simulator tooling, and anything that isn't Apple's, such as Tailscale. On a host profile it adds one small login agent that keeps a Terminal window open.
+
 ## What it never does
 
+- It never writes to the sealed system volume and never turns off System Integrity Protection.
 - It never writes the privacy (TCC) database; System Integrity Protection guards it, and a grant written around it would not be trustworthy.
 - It doesn't turn off notifications: Focus and Do Not Disturb have no supported command line. With no display attached, nothing waits on a banner.
 
@@ -90,23 +117,31 @@ provision --github <you> --role runner --runner-repo example/app --runner-label 
 --hostname <name>         name the Mac and its tailnet device
 --role runner|worker      add a role (repeatable)
 --runner-repo, --runner-label, --runner-prepull
+--no-slim                 leave the services and apps macOS ships alone
 --notify-url <url>        POST a JSON summary when done
 --check                   print the checklist only
+--profile <name>          add a built-in profile's arguments first
 ```
+
+`provision tui` and `provision slim <command>` are described above.
 
 ## Layout
 
 | Path | What |
 |---|---|
-| `apps/cli/src/provision.sh` | The command. Bash 3.2, since a fresh Mac has nothing newer. |
-| `apps/cli/src/steps/` | One file per area, each with a `step_` function that applies it and a `check_` function for the checklist. |
-| `apps/cli/src/roles/` | The worker and runner roles; the runner's VM scripts live in `roles/runner/`. |
-| `apps/cli/build/` | Bundles `src` into one self-extracting installer per profile (`dist/provision.sh`, `dist/<profile>.sh`). |
-| `apps/cli/profiles/` | One argument per line. |
+| `install.sh` | The one-liner: downloads the released binary, checks its SHA-256 and runs it. |
+| `apps/cli/src/cli.ts` | The command: setup, `tui` and `slim`. TypeScript on Bun, compiled to one binary. |
+| `apps/cli/src/setup/` | Setup: options, credentials, and `steps/` with one file per area, each with an `apply` and a `check` for the checklist; `roles/` holds the worker and runner roles. |
+| `apps/cli/src/slim/` | Slimming: the task catalog, the protected list, the engine and journal. |
+| `apps/cli/src/core/` | What both share: the command runner, output and the checklist. |
+| `apps/cli/src/tui/` | The Ink TUI. |
+| `apps/cli/assets/` | Files built into the binary: profiles, the runner's VM scripts and launch agents, and the expect script that answers FileVault and automatic-login prompts. |
+| `.github/workflows/release.yml` | Tests, builds and publishes the binary. |
 
 ```
 bun install
 bun run test
 bun run typecheck
 bun run lint
+bun run build      # apps/cli/dist/provision
 ```
