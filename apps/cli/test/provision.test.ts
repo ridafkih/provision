@@ -43,7 +43,7 @@ describe("provision", () => {
     });
 
     it("replays the saved arguments, spaces and all, when run again with none", () => {
-      runWithProvision(sandbox, `save_arguments --ssh-key '${workerKey}' --role worker`);
+      runWithProvision(sandbox, `repair_provision_home; save_arguments --ssh-key '${workerKey}' --role worker`);
       const result = runWithProvision(sandbox, `load_saved_arguments; printf '%s|' "\${extra_public_keys[@]}" "\${roles[@]}"`);
       expect(result.stdout).toBe(`${workerKey}|worker|`);
     });

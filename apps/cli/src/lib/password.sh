@@ -34,6 +34,7 @@ stop_keeping_sudo() {
 }
 
 keep_sudo_alive() {
+  [[ -z "$sudo_keeper_pid" ]] || return 0
   local parent_pid="$$"
   (
     while kill -0 "$parent_pid" 2>/dev/null; do
@@ -46,6 +47,7 @@ keep_sudo_alive() {
 }
 
 collect_credentials() {
+  [[ -z "$sudo_keeper_pid" ]] || return 0
   if ! sudo true 2>/dev/null || needs_unattended_boot_password; then
     prompt_password_once
   fi

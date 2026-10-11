@@ -43,7 +43,7 @@ CONFIG
 render_runner_agent() {
   local template="$1" label="$2" slot="$3"
   sed -e "s#@LABEL@#$label#g" \
-    -e "s#@KIT@#$kit_directory/roles/runner#g" \
+    -e "s#@KIT@#$installed_kit_directory/roles/runner#g" \
     -e "s#@SLOT@#$slot#g" \
     -e "s#@PATH@#/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin#g" \
     -e "s#@HOME@#$HOME#g" \

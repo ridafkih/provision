@@ -14,6 +14,7 @@ extra_public_keys=()
 roles=()
 runner_labels=()
 requested_grants=()
+saved_arguments=()
 runner_prepull_images=()
 runner_repository=""
 wanted_hostname=""
@@ -84,7 +85,6 @@ require_macos_admin() {
 saved_arguments_file="$HOME/.provision/arguments"
 
 save_arguments() {
-  install -d -m 700 "$HOME/.provision"
   printf '%s\0' "$@" >"$saved_arguments_file"
 }
 
@@ -99,11 +99,11 @@ load_saved_arguments() {
 }
 
 install_command() {
-  if [[ "$(readlink "$command_link" 2>/dev/null)" == "$kit_directory/provision.sh" ]]; then
+  if [[ "$(readlink "$command_link" 2>/dev/null)" == "$installed_kit_directory/provision.sh" ]]; then
     unchanged "provision command at $command_link"
   else
     sudo install -d /usr/local/bin
-    sudo ln -sf "$kit_directory/provision.sh" "$command_link"
+    sudo ln -sf "$installed_kit_directory/provision.sh" "$command_link"
     changed "provision command at $command_link"
   fi
 }
@@ -139,6 +139,9 @@ print_report() {
 apply() {
   step "Before anything changes"
   collect_credentials
+  repair_provision_home
+  install_kit
+  ((${#saved_arguments[@]} == 0)) || save_arguments "${saved_arguments[@]}"
   require_name_resolution "before setup starts"
   fetch_public_keys
   step "Name"; step_hostname
@@ -165,6 +168,10 @@ apply() {
 main() {
   [[ -t 0 ]] || { exec </dev/tty; } 2>/dev/null || true
   require_macos_admin
+  if has_foreign_files_in_provision_home; then
+    collect_credentials
+    repair_provision_home
+  fi
   if (($# == 0)); then
     load_saved_arguments
   else
@@ -175,7 +182,7 @@ main() {
     return 0
   fi
   ((${#github_users[@]} + ${#extra_public_keys[@]} > 0)) || die "pass --github <user> or --ssh-key '<key>' so you can still get in once passwords are off"
-  (($# == 0)) || save_arguments "$@"
+  saved_arguments=("$@")
   apply
   print_report
   send_notification
