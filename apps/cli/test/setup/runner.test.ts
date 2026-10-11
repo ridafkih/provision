@@ -40,12 +40,12 @@ describe("runner role config", () => {
     [64, 4, 2],
   ])("sizes %i GB and %i cores to %i slots", (gigabytes, cores, slots) => {
     fakeHost(sandbox, gigabytes * 1024 ** 3, cores);
-    expect(runnerSlotCount(sandbox.machine)).toBe(slots);
+    expect(runnerSlotCount(sandbox.machine, 0)).toBe(slots);
   });
 
   it("refuses a host too small for one runner VM", () => {
     fakeHost(sandbox, 8 * 1024 ** 3, 8);
-    expect(() => runnerSlotCount(sandbox.machine)).toThrow("too little for one 6144 MB runner VM");
+    expect(() => runnerSlotCount(sandbox.machine, 0)).toThrow("too little for one 6144 MB Linux runner VM");
   });
 
   it("reports a runner role that was never set up instead of stopping the checklist", () => {
@@ -56,9 +56,39 @@ describe("runner role config", () => {
   });
 
   it("points the launch agents at the installed runner scripts", () => {
-    const agent = renderRunnerAgent(sandbox.machine, runnerAgentTemplates.slot, "dev.provision.runner-slot-2", 2);
+    const agent = renderRunnerAgent(sandbox.machine, runnerAgentTemplates.slot, "dev.provision.runner-slot-2", 2, "linux");
     expect(agent).toContain(`<string>${sandbox.home}/.provision/kit/roles/runner/bin/run-slot.sh</string>`);
     expect(agent).toContain("<string>dev.provision.runner-slot-2</string>");
+    expect(agent).not.toContain("@");
+  });
+
+  it("adds one macOS slot from the given image and gives the Linux slots what memory is left", () => {
+    fakeHost(sandbox, 24 * 1024 ** 3, 12);
+    const config = runnerConfig(
+      setupOf(sandbox, ["--runner-repo", "o/r", "--runner-macos-image", "ghcr.io/cirruslabs/macos-tahoe-xcode:26.5", "--runner-macos-label", "app-swift"]),
+    );
+    expect(config).toContain("LINUX_SLOTS=2\n");
+    expect(config).toContain("MACOS_SLOTS=1\n");
+    expect(config).toContain("MACOS_BASE_IMAGE=ghcr.io/cirruslabs/macos-tahoe-xcode:26.5\n");
+    expect(config).toContain("MACOS_RUNNER_LABELS=self-hosted,macOS,ARM64,app-swift\n");
+  });
+
+  it("has no macOS slot unless an image is given", () => {
+    fakeHost(sandbox, 24 * 1024 ** 3, 12);
+    const config = runnerConfig(setupOf(sandbox, ["--runner-repo", "o/r"]));
+    expect(config).toContain("LINUX_SLOTS=3\n");
+    expect(config).toContain("MACOS_SLOTS=0\n");
+  });
+
+  it("refuses a macOS slot on a host that would then have no room for a Linux one", () => {
+    fakeHost(sandbox, 16 * 1024 ** 3, 12);
+    expect(() => runnerConfig(setupOf(sandbox, ["--runner-repo", "o/r", "--runner-macos-image", "img"]))).toThrow("beside a 8192 MB macOS runner VM");
+  });
+
+  it("starts the macOS slot agent on the macOS pool with its own log", () => {
+    const agent = renderRunnerAgent(sandbox.machine, runnerAgentTemplates.slot, "dev.provision.runner-macos-slot-1", 1, "macos");
+    expect(agent).toContain("<string>macos</string>\n    <string>1</string>");
+    expect(agent).toContain(`<string>${sandbox.home}/Library/Logs/provision/macos-slot-1.log</string>`);
     expect(agent).not.toContain("@");
   });
 });

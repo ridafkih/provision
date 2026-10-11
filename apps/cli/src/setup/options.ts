@@ -16,6 +16,8 @@ export type Options = {
   requestedGrants: string[];
   runnerPrepullImages: string[];
   runnerRepository: string;
+  runnerMacosImage: string;
+  runnerMacosLabels: string[];
   wantedHostname: string;
   notifyUrl: string;
   isSlimSkipped: boolean;
@@ -31,6 +33,8 @@ export const emptyOptions = (): Options => ({
   requestedGrants: [],
   runnerPrepullImages: [],
   runnerRepository: "",
+  runnerMacosImage: "",
+  runnerMacosLabels: [],
   wantedHostname: "",
   notifyUrl: "",
   isSlimSkipped: false,
@@ -53,6 +57,10 @@ export const usage = `provision: set up this Mac to run headless, slim it down, 
   --runner-repo <owner/repo>
   --runner-label <label>    extra runner label beyond self-hosted, Linux, ARM64 (repeatable)
   --runner-prepull <image>  container image to bake into the runner VM (repeatable)
+  --runner-macos-image <ref>
+                            also run one macOS runner VM from this Tart image (one per host, Apple's licence allows two)
+  --runner-macos-label <label>
+                            extra label for the macOS runner beyond self-hosted, macOS, ARM64 (repeatable)
   --grant <kind>:<path>     walk you through a privacy grant in System Settings and check it took;
                             kind is full-disk-access, screen-recording, accessibility or all (repeatable)
   --no-slim                 leave the services and apps macOS ships alone
@@ -102,6 +110,12 @@ export function parseArguments(argumentList: readonly string[], options: Options
         break;
       case "--runner-prepull":
         options.runnerPrepullImages.push(valueOf(argumentsLeft, "--runner-prepull needs an image"));
+        break;
+      case "--runner-macos-image":
+        options.runnerMacosImage = valueOf(argumentsLeft, "--runner-macos-image needs a Tart image reference");
+        break;
+      case "--runner-macos-label":
+        options.runnerMacosLabels.push(valueOf(argumentsLeft, "--runner-macos-label needs a label"));
         break;
       case "--grant": {
         const grant = argumentsLeft.shift() ?? "";

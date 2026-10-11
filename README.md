@@ -102,6 +102,8 @@ Roles add a job on top of the base layer:
 
   Softnet keeps a VM off the LAN and the tailnet but always lets it reach its bridge gateway, which is the host itself. A pf anchor, `com.apple/300.provision-runner` (rules in `/etc/pf.anchors/provision-runner`), closes that gap. On the vmnet bridges it lets a VM ask the host for DHCP and DNS and refuses everything else, SSH and Screen Sharing included. The LaunchDaemon `dev.provision.runner-firewall` loads it at boot and re-asserts it every five minutes. The anchor sits under `com.apple/*`, so `/etc/pf.conf` stays untouched.
 
+  `--runner-macos-image <tart image>` adds one macOS slot that works the same way: a macOS VM cloned from a golden image baked from that image (for example `ghcr.io/cirruslabs/macos-tahoe-xcode:26.5`, which carries Xcode), a just-in-time runner labelled `self-hosted, macOS, ARM64` plus any `--runner-macos-label`, Softnet isolation, and deletion after the one job. A host gets at most one, because Apple's licence allows two macOS VMs per Mac and the bake needs the second. It takes 8 GB, so the Linux slots get what is left: a 24 GB Mac runs two Linux slots and the macOS one, and a 16 GB Mac is refused. The first macOS bake downloads about 70 GB.
+
   The runner needs one secret: `GITHUB_RUNNER_TOKEN`, a fine-grained token for that repository with Administration read and write, in `~/.provision/runner/credentials.env` (mode 600). Slots wait for it. Then start the first bake with `launchctl kickstart -k gui/$(id -u)/dev.provision.runner-bake`.
 
 Example, run over SSH after racking:
@@ -119,7 +121,7 @@ provision --github <you> --role runner --runner-repo example/app --runner-label 
 --ssh-key '<public key>'  authorize one more key (repeatable)
 --hostname <name>         name the Mac and its tailnet device
 --role runner|worker      add a role (repeatable)
---runner-repo, --runner-label, --runner-prepull
+--runner-repo, --runner-label, --runner-prepull, --runner-macos-image, --runner-macos-label
 --no-slim                 leave the services and apps macOS ships alone
 --no-passwordless-sudo    keep asking for your password for sudo after setup
 --notify-url <url>        POST a JSON summary when done

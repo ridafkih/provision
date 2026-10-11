@@ -8,6 +8,7 @@
   <array>
     <string>/bin/bash</string>
     <string>@KIT@/bin/run-slot.sh</string>
+    <string>@POOL@</string>
     <string>@SLOT@</string>
   </array>
   <key>EnvironmentVariables</key>
@@ -26,8 +27,8 @@
   <key>ProcessType</key>
   <string>Standard</string>
   <key>StandardOutPath</key>
-  <string>@LOGS@/slot-@SLOT@.log</string>
+  <string>@LOGS@/@LOG_NAME@.log</string>
   <key>StandardErrorPath</key>
-  <string>@LOGS@/slot-@SLOT@.log</string>
+  <string>@LOGS@/@LOG_NAME@.log</string>
 </dict>
 </plist>

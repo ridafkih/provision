@@ -10,10 +10,10 @@ github_api() {
 }
 
 create_jit_config() {
-  local name="$1"
+  local name="$1" labels="$2"
   jq --null-input --compact-output \
     --arg name "$name" \
-    --arg labels "$RUNNER_LABELS" \
+    --arg labels "$labels" \
     '{name: $name, runner_group_id: 1, labels: ($labels | split(",")), work_folder: "_work"}' \
     | github_api POST "/repos/$GITHUB_REPOSITORY/actions/runners/generate-jitconfig" --data @- \
     | jq --raw-output --exit-status '.encoded_jit_config'
@@ -30,7 +30,8 @@ remove_offline_runners() {
 }
 
 latest_runner_release() {
+  local platform="$1"
   github_api GET "/repos/actions/runner/releases/latest" \
-    | jq --raw-output --exit-status \
-      '.tag_name as $tag | .assets[] | select(.name | test("^actions-runner-linux-arm64-[0-9.]+\\.tar\\.gz$")) | "\($tag | ltrimstr("v")) \(.browser_download_url) \(.digest | ltrimstr("sha256:"))"'
+    | jq --raw-output --exit-status --arg platform "$platform" \
+      '.tag_name as $tag | .assets[] | select(.name | test("^actions-runner-\($platform)-arm64-[0-9.]+\\.tar\\.gz$")) | "\($tag | ltrimstr("v")) \(.browser_download_url) \(.digest | ltrimstr("sha256:"))"'
 }

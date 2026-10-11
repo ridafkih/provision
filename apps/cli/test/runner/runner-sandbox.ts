@@ -47,6 +47,11 @@ const runnerRelease = (version: string) => ({
       browser_download_url: `https://example.invalid/actions-runner-linux-arm64-${version}.tar.gz`,
       digest: "sha256:arm64digest",
     },
+    {
+      name: `actions-runner-osx-arm64-${version}.tar.gz`,
+      browser_download_url: `https://example.invalid/actions-runner-osx-arm64-${version}.tar.gz`,
+      digest: "sha256:osxdigest",
+    },
   ],
 });
 
@@ -102,6 +107,7 @@ const configLines = (sandbox: Sandbox, overrides: Record<string, string>) => {
     RETRY_DELAY_SECONDS: "0",
     CREDENTIALS_FILE: join(sandbox.home, ".provision/runner/credentials.env"),
     LOG_DIRECTORY: join(sandbox.root, "logs"),
+    MACOS_SLOTS: "0",
     ...overrides,
   };
   return Object.entries(values)
