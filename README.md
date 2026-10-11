@@ -35,13 +35,13 @@ Run `provision` again any time (it is linked into `/usr/local/bin`); with no opt
 | Power and recovery | Never sleeps (`pmset` sleep, display, disk and standby 0, sleep disabled, Power Nap off), starts up after a power cut, wakes for network access, keeps TCP alive, restarts after a freeze where `systemsetup` allows it. |
 | Unattended boot | FileVault off (it waits for decryption to finish) and automatic login as you, so a power cut ends at your desktop with the login keychain unlocked. |
 | Remote access | Remote Login (SSH) on, your GitHub keys and any `--ssh-key` authorized, passwords off for SSH. Screen Sharing on, Remote Management off. |
-| Tailscale | The open-source `tailscaled` from Homebrew as a system daemon, so it connects before anyone logs in and follows the Mac across networks and between Wi-Fi and Ethernet. A Tailscale app that is already installed is used instead of adding a second daemon. |
+| Tailscale | The open-source `tailscaled` from Homebrew as a system daemon, so it connects before anyone logs in and follows the Mac across networks and between Wi-Fi and Ethernet. It joins with `--accept-dns=false`, so the Mac keeps its own DNS: other devices still reach it by its tailnet name. A Tailscale app that is already installed is used instead of adding a second daemon. |
 | Headless | No Bluetooth setup window when it boots without a keyboard or mouse, no crash dialogs, no screen saver. |
 | macOS updates | Download only. They never install or restart on their own; security responses and system data files still install. |
 | Privacy and noise | Spotlight indexing off, guest account off, analytics and crash submission off, firewall and stealth mode on, file, printer and internet sharing off. |
 | Tooling | Homebrew (with the Xcode Command Line Tools it installs). |
 
-Every step is idempotent and prints `set:` or `unchanged:`.
+Every step is idempotent and prints `set:` or `unchanged:`. The password is the only thing it asks for, and it asks first; every later `sudo` is non-interactive. Before the first download it checks that the Mac can look up github.com and repairs DNS if an unsigned-in Tailscale broke it, so running the same command again picks up wherever a previous run stopped.
 
 ## Privacy grants
 
