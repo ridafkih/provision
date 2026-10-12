@@ -31,4 +31,5 @@ done
 
 apt-get clean
 fstrim --all --quiet-unsupported
+sync
 printf 'provisioned: actions runner %s and %s prepulled images\n' "$runner_version" "$#"
