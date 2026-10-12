@@ -6,6 +6,7 @@ import { output, run, sleep, sudo, type Machine } from "../../core/shell";
 import type { Setup, SetupStep } from "../context";
 import { requireNameResolution } from "../name-resolution";
 import { ensureFormula } from "./homebrew";
+import { loadedTailscaleDaemon } from "../tailscale-daemon";
 
 const loginTimeoutSeconds = 1800;
 const backendTimeoutSeconds = 60;
@@ -53,13 +54,13 @@ function openForConsoleUser(machine: Machine, url: string) {
   return sudo(machine, ["launchctl", "asuser", uid, "sudo", "-u", user, machine.paths.open, url]).code === 0;
 }
 
-function ensureTailscaleDaemon(machine: Machine) {
+export function ensureTailscaleDaemon(machine: Machine) {
   if (!usesTailscaleDaemon(machine)) {
     unchanged(machine, `using the Tailscale app already installed; it connects once ${machine.user} logs in automatically`);
     return;
   }
   ensureFormula(machine, "tailscale");
-  if (sudo(machine, ["launchctl", "print", "system/homebrew.mxcl.tailscale"]).code === 0) {
+  if (loadedTailscaleDaemon(machine)) {
     unchanged(machine, "tailscaled runs as a system daemon, before anyone logs in");
     return;
   }
