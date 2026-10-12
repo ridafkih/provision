@@ -22,6 +22,7 @@ case "$command" in
     fi
     if [ -e "$state/wedged-$1" ]; then exec sleep 3600; fi
     ;;
+  list) (cd "$state/vms" && find . -type f -path "*/*/*" | sed "s|^\./||") ;;
   set|pull|prune) ;;
   *) exit 64 ;;
 esac

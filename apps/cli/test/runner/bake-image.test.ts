@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import {
+  addCachedImage,
   addVm,
   createSandbox,
   disposeSandbox,
@@ -133,7 +134,7 @@ describe("bake-image.sh", () => {
     const pinned = "ghcr.io/cirruslabs/macos-tahoe-xcode@sha256:abc";
     writeConfig(sandbox, { ...macosConfig, MACOS_BASE_IMAGE: pinned, MACOS_PULL_FREE_GB: "999999" });
     addVm(sandbox, "runner-linux");
-    addVm(sandbox, pinned);
+    addCachedImage(sandbox, pinned);
     recordBake(sandbox, "2.338.0", 1);
     const { status, output } = await bake(sandbox);
     expect({ status, output }).toMatchObject({ status: 0 });

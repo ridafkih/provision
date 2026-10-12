@@ -171,8 +171,10 @@ export const tartCalls = (sandbox: Sandbox) =>
     ? readFileSync(join(sandbox.tartState, "calls.log"), "utf8").trim().split("\n")
     : [];
 
-export const addVm = (sandbox: Sandbox, vmName: string) => {
-  const path = join(sandbox.tartState, "vms", vmName);
+export const addVm = (sandbox: Sandbox, vmName: string) => writeFileSync(join(sandbox.tartState, "vms", vmName), "");
+
+export const addCachedImage = (sandbox: Sandbox, reference: string) => {
+  const path = join(sandbox.tartState, "vms", reference);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, "");
 };

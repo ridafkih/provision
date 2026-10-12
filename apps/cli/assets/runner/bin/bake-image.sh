@@ -44,7 +44,7 @@ free_disk_gb() {
 }
 
 is_pull_free() {
-  [[ "$pool_base_image" == *@sha256:* ]] && vm_exists "$pool_base_image"
+  [[ "$pool_base_image" == *@sha256:* ]] && tart list --source oci --quiet | grep -Fxq "$pool_base_image"
 }
 
 has_pull_space() {
