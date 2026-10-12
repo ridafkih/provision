@@ -80,9 +80,17 @@ describe("runner role config", () => {
     expect(config).toContain("MACOS_SLOTS=0\n");
   });
 
+  it("runs one Linux slot beside the macOS one on a 16 GB host", () => {
+    fakeHost(sandbox, 16 * 1024 ** 3, 10);
+    const config = runnerConfig(setupOf(sandbox, ["--runner-repo", "o/r", "--runner-macos-image", "img"]));
+    expect(config).toContain("LINUX_SLOTS=1\n");
+    expect(config).toContain("MACOS_SLOTS=1\n");
+    expect(config).toContain("MACOS_VM_MEMORY_MB=6144");
+  });
+
   it("refuses a macOS slot on a host that would then have no room for a Linux one", () => {
-    fakeHost(sandbox, 16 * 1024 ** 3, 12);
-    expect(() => runnerConfig(setupOf(sandbox, ["--runner-repo", "o/r", "--runner-macos-image", "img"]))).toThrow("beside a 8192 MB macOS runner VM");
+    fakeHost(sandbox, 12 * 1024 ** 3, 12);
+    expect(() => runnerConfig(setupOf(sandbox, ["--runner-repo", "o/r", "--runner-macos-image", "img"]))).toThrow("beside a 6144 MB macOS runner VM");
   });
 
   it("starts the macOS slot agent on the macOS pool with its own log", () => {

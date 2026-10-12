@@ -19,7 +19,7 @@ select_pool() {
       pool_golden_vm="$MACOS_GOLDEN_VM"
       pool_labels="$MACOS_RUNNER_LABELS"
       pool_memory_mb="$MACOS_VM_MEMORY_MB"
-      pool_bake_memory_mb="$MACOS_VM_MEMORY_MB"
+      pool_bake_memory_mb="$BAKE_MEMORY_MB"
       pool_disk_gb=""
       pool_prepare_script="prepare-macos-vm.sh"
       pool_state_file="$runner_config_directory/golden-macos.env"

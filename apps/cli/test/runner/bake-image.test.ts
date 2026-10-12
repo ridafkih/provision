@@ -92,7 +92,7 @@ describe("bake-image.sh", () => {
       MACOS_BASE_IMAGE: "ghcr.io/cirruslabs/macos-tahoe-xcode:26.5",
       MACOS_GOLDEN_VM: "runner-macos",
       MACOS_RUNNER_LABELS: "self-hosted,macOS,ARM64,app-swift",
-      MACOS_VM_MEMORY_MB: "8192",
+      MACOS_VM_MEMORY_MB: "6144",
     });
     addVm(sandbox, "runner-linux");
     recordBake(sandbox, "2.338.0", 1);
@@ -100,7 +100,8 @@ describe("bake-image.sh", () => {
     expect({ status, output }).toMatchObject({ status: 0 });
     const calls = tartCalls(sandbox);
     expect(calls).toContain("clone ghcr.io/cirruslabs/macos-tahoe-xcode:26.5 runner-macos-staging");
-    expect(calls).toContain("set runner-macos-staging --cpu 4 --memory 8192");
+    expect(calls).toContain("set runner-macos-staging --cpu 4 --memory 4096");
+    expect(calls).toContain("set runner-macos-staging --memory 6144");
     expect(calls.some((call) => call.startsWith("set runner-macos-staging --disk-size"))).toBe(false);
     expect(calls).toContain(
       "exec -i runner-macos-staging sudo bash -s -- 2.338.0 https://example.invalid/actions-runner-osx-arm64-2.338.0.tar.gz osxdigest",

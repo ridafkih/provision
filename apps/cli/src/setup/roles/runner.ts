@@ -12,7 +12,7 @@ import { applyWorkerRole, checkWorkerRole } from "./worker";
 
 const vmCpuCount = 4;
 const vmMemoryMb = 6144;
-const macosVmMemoryMb = 8192;
+const macosVmMemoryMb = 6144;
 const hostReservedMemoryMb = 4096;
 const maxSlots = 4;
 

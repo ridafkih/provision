@@ -23,7 +23,7 @@ const macosConfig = {
   MACOS_BASE_IMAGE: "ghcr.io/cirruslabs/macos-tahoe-xcode:26.5",
   MACOS_GOLDEN_VM: "runner-macos",
   MACOS_RUNNER_LABELS: "self-hosted,macOS,ARM64,app-swift",
-  MACOS_VM_MEMORY_MB: "8192",
+  MACOS_VM_MEMORY_MB: "6144",
 };
 
 describe("run-slot.sh", () => {
