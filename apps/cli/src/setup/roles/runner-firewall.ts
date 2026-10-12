@@ -33,6 +33,11 @@ export const runnerFirewallRulesFile = (machine: Machine) => join(machine.paths.
 
 export const runnerFirewallDaemonFile = (machine: Machine) => join(machine.paths.launchDaemonsDirectory, `${daemonLabel}.plist`);
 
+export const runnerFirewallLoadScript = (machine: Machine) =>
+  `pfctl -s info 2>/dev/null | grep -q '^Status: Enabled' || pfctl -E; for attempt in 1 2 3 4 5; do pfctl -a ${runnerFirewallAnchor} -f ${runnerFirewallRulesFile(machine)} && exit 0; sleep 1; done; exit 1`;
+
+const escapeXml = (text: string) => text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+
 export const runnerFirewallDaemon = (machine: Machine) => `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -43,8 +48,13 @@ export const runnerFirewallDaemon = (machine: Machine) => `<?xml version="1.0" e
   <array>
     <string>/bin/sh</string>
     <string>-c</string>
-    <string>/sbin/pfctl -s info 2&gt;/dev/null | /usr/bin/grep -q '^Status: Enabled' || /sbin/pfctl -E; /sbin/pfctl -a ${runnerFirewallAnchor} -f ${runnerFirewallRulesFile(machine)}</string>
+    <string>${escapeXml(runnerFirewallLoadScript(machine))}</string>
   </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
   <key>RunAtLoad</key>
   <true/>
   <key>StartInterval</key>
@@ -87,21 +97,33 @@ const isPfEnabled = (machine: Machine) => /^Status: Enabled/m.test(sudo(machine,
 
 const isAnchorCurrent = (machine: Machine) => sudo(machine, ["pfctl", "-a", runnerFirewallAnchor, "-s", "rules"]).stdout.includes(`label "${rulesLabel()}"`);
 
+const enforcementWaitMilliseconds = 20_000;
+
+const isEnforced = (machine: Machine) => isPfEnabled(machine) && isAnchorCurrent(machine);
+
+function waitUntilEnforced(machine: Machine) {
+  const deadline = Date.now() + enforcementWaitMilliseconds;
+  while (!isEnforced(machine)) {
+    if (Date.now() > deadline) fail(`${daemonLabel} did not load ${runnerFirewallAnchor}`);
+    Bun.sleepSync(250);
+  }
+}
+
 export function applyRunnerFirewall(machine: Machine) {
-  const rulesFile = runnerFirewallRulesFile(machine);
   const daemonFile = runnerFirewallDaemonFile(machine);
-  const isRulesChanged = installRootFile(machine, rulesFile, runnerFirewallRules(), validateRules(machine));
+  const isRulesChanged = installRootFile(machine, runnerFirewallRulesFile(machine), runnerFirewallRules(), validateRules(machine));
   const isDaemonChanged = installRootFile(machine, daemonFile, runnerFirewallDaemon(machine));
   const isDaemonReloaded = isDaemonChanged || !isDaemonLoaded(machine);
   if (isDaemonReloaded) {
     sudo(machine, ["launchctl", "bootout", daemonTarget]);
     if (sudo(machine, ["launchctl", "bootstrap", "system", daemonFile]).code !== 0) fail(`launchctl could not load ${daemonLabel}`);
   }
-  const isPfTurnedOn = !isPfEnabled(machine);
-  if (isPfTurnedOn) sudo(machine, ["pfctl", "-E"]);
-  const isAnchorReloaded = isRulesChanged || !isAnchorCurrent(machine);
-  if (isAnchorReloaded && sudo(machine, ["pfctl", "-a", runnerFirewallAnchor, "-f", rulesFile]).code !== 0) fail(`pfctl could not load ${runnerFirewallAnchor}`);
-  if (isRulesChanged || isDaemonReloaded || isPfTurnedOn || isAnchorReloaded) changed(machine, `${description} (pf anchor ${runnerFirewallAnchor})`);
+  const isAnchorReloaded = isRulesChanged || !isEnforced(machine);
+  if (isAnchorReloaded) {
+    if (sudo(machine, ["launchctl", "kickstart", "-k", daemonTarget]).code !== 0) fail(`launchctl could not start ${daemonLabel}`);
+    waitUntilEnforced(machine);
+  }
+  if (isRulesChanged || isDaemonReloaded || isAnchorReloaded) changed(machine, `${description} (pf anchor ${runnerFirewallAnchor})`);
   else unchanged(machine, description);
 }
 
@@ -110,8 +132,7 @@ export function checkRunnerFirewall(machine: Machine, checklist: Checklist) {
     readIfPresent(runnerFirewallRulesFile(machine)) === runnerFirewallRules() &&
     readIfPresent(runnerFirewallDaemonFile(machine)) === runnerFirewallDaemon(machine) &&
     isDaemonLoaded(machine) &&
-    isPfEnabled(machine) &&
-    isAnchorCurrent(machine);
+    isEnforced(machine);
   if (isInPlace) checklist.pass(description);
   else checklist.miss(description, "rerun provision --role runner");
 }

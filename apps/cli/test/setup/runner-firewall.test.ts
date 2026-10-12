@@ -29,16 +29,18 @@ case "$*" in
   "-E") rm -f "$HOME/pf-disabled" ;;
   "-n "*) [ -f "$HOME/pf-invalid" ] && exit 1; exit 0 ;;
   *" -s rules") cat "$HOME/pf-loaded" 2>/dev/null ;;
-  *" -f "*) cp "\${@: -1}" "$HOME/pf-loaded" ;;
+  *" -f "*) if [ -f "$HOME/pf-busy-once" ]; then rm "$HOME/pf-busy-once"; echo "DIOCADDRULE: Resource busy" >&2; exit 1; fi; cp "\${@: -1}" "$HOME/pf-loaded" ;;
 esac`,
   );
+  const daemonScript = `/usr/libexec/PlistBuddy -c "Print :ProgramArguments:2" "${runnerFirewallDaemonFile(sandbox.machine)}"`;
   addFakeCommand(
     sandbox,
     "launchctl",
     `printf "launchctl %s\\n" "$*" >> "$HOME/calls"
 case "$1" in
   print) [ -f "$HOME/daemon-loaded" ] ;;
-  bootstrap) touch "$HOME/daemon-loaded" ;;
+  bootstrap) touch "$HOME/daemon-loaded"; sh -c "$(${daemonScript})" ;;
+  kickstart) sh -c "$(${daemonScript})" ;;
   bootout) rm -f "$HOME/daemon-loaded" ;;
 esac`,
   );
@@ -103,7 +105,7 @@ describe("runner firewall", () => {
   });
   afterEach(() => disposeSandbox(sandbox));
 
-  it("installs the rules and a boot daemon as root, loads the anchor, then leaves all of it alone", () => {
+  it("installs the rules and a boot daemon as root, has the daemon load the anchor, then leaves all of it alone", () => {
     applyRunnerFirewall(sandbox.machine);
     expect(readFileSync(runnerFirewallRulesFile(sandbox.machine), "utf8")).toBe(runnerFirewallRules());
     expect(readFileSync(runnerFirewallDaemonFile(sandbox.machine), "utf8")).toBe(runnerFirewallDaemon(sandbox.machine));
@@ -111,12 +113,13 @@ describe("runner firewall", () => {
     expect(first.filter((call) => call.startsWith("install -m 0644 -o root -g wheel ")).length).toBe(2);
     expect(first.findIndex((call) => call.startsWith("pfctl -n -a "))).toBeLessThan(first.findIndex((call) => call.startsWith("install ")));
     expect(first).toContain(`launchctl bootstrap system ${runnerFirewallDaemonFile(sandbox.machine)}`);
+    expect(first).toContain("launchctl kickstart -k system/dev.provision.runner-firewall");
     expect(first).toContain(`pfctl -a ${runnerFirewallAnchor} -f ${runnerFirewallRulesFile(sandbox.machine)}`);
     expect(sandbox.printed).toEqual([`set: ${hostOnlyLabel} (pf anchor ${runnerFirewallAnchor})`]);
 
     clearCalls(sandbox);
     applyRunnerFirewall(sandbox.machine);
-    expect(calls(sandbox).filter((call) => /^(install|launchctl bootstrap|launchctl bootout)|-f /.test(call))).toEqual([]);
+    expect(calls(sandbox).filter((call) => /^(install|launchctl bootstrap|launchctl bootout|launchctl kickstart)|-f /.test(call))).toEqual([]);
     expect(sandbox.printed.at(-1)).toBe(`unchanged: ${hostOnlyLabel}`);
   });
 
@@ -125,6 +128,7 @@ describe("runner firewall", () => {
     rmSync(join(sandbox.home, "pf-loaded"));
     clearCalls(sandbox);
     applyRunnerFirewall(sandbox.machine);
+    expect(calls(sandbox)).toContain("launchctl kickstart -k system/dev.provision.runner-firewall");
     expect(calls(sandbox)).toContain(`pfctl -a ${runnerFirewallAnchor} -f ${runnerFirewallRulesFile(sandbox.machine)}`);
     expect(calls(sandbox).some((call) => call.startsWith("install "))).toBe(false);
   });
@@ -144,6 +148,13 @@ describe("runner firewall", () => {
     expect(existsSync(join(sandbox.home, "pf-disabled"))).toBe(false);
   });
 
+  it("retries a load that pf reports busy, as when another load of the anchor is in flight", () => {
+    writeFileSync(join(sandbox.home, "pf-busy-once"), "");
+    applyRunnerFirewall(sandbox.machine);
+    expect(calls(sandbox).filter((call) => call === `pfctl -a ${runnerFirewallAnchor} -f ${runnerFirewallRulesFile(sandbox.machine)}`).length).toBeGreaterThanOrEqual(2);
+    expect(checklistOf(sandbox)).toBe(`  ✓ ${hostOnlyLabel}\n`);
+  });
+
   it("installs nothing when pfctl rejects the rules", () => {
     writeFileSync(join(sandbox.home, "pf-invalid"), "");
     expect(() => applyRunnerFirewall(sandbox.machine)).toThrow("pfctl rejected");
@@ -155,8 +166,9 @@ describe("runner firewall", () => {
     expect(daemon).toContain("<string>dev.provision.runner-firewall</string>");
     expect(daemon).toContain("<key>RunAtLoad</key>\n  <true/>");
     expect(daemon).toContain("<key>StartInterval</key>\n  <integer>300</integer>");
-    expect(daemon).toContain(`/sbin/pfctl -a ${runnerFirewallAnchor} -f ${runnerFirewallRulesFile(sandbox.machine)}`);
-    expect(daemon).toContain("/sbin/pfctl -E");
+    expect(daemon).toContain(`pfctl -a ${runnerFirewallAnchor} -f ${runnerFirewallRulesFile(sandbox.machine)} &amp;&amp; exit 0`);
+    expect(daemon).toContain("|| pfctl -E;");
+    expect(daemon).toContain("<string>/usr/bin:/bin:/usr/sbin:/sbin</string>");
   });
 
   it("shows in the checklist", () => {
