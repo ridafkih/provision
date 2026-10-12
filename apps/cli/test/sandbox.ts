@@ -19,7 +19,7 @@ export const createSandbox = (): Sandbox => {
     home,
     user: "rack",
     environment: { PATH: `${bin}:/usr/bin:/bin:/usr/sbin:/sbin`, HOME: home, USER: "rack" },
-    paths: { ...systemPaths, homebrewTailscale: join(bin, "absent-tailscale"), appTailscale: join(bin, "absent-app"), commandLink: join(root, "provision-link") },
+    paths: { ...systemPaths, homebrewTailscale: join(bin, "absent-tailscale"), appTailscale: join(bin, "absent-app"), commandLink: join(root, "provision-link"), pfAnchorsDirectory: join(root, "absent-pf.anchors"), launchDaemonsDirectory: join(root, "absent-LaunchDaemons") },
     print: (text) => printed.push(text),
   };
   return { root, home, bin, machine, printed };

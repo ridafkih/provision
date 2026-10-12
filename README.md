@@ -100,6 +100,8 @@ Roles add a job on top of the base layer:
 - `--role worker`: a VM host. Tart and Softnet from Homebrew, Softnet set-uid root so Tart can isolate VM networks without sudo.
 - `--role runner --runner-repo <owner/repo>`: ephemeral GitHub Actions runners for one repository. Each job runs in its own Tart Linux VM (`ghcr.io/cirruslabs/ubuntu-runner-arm64:24.04`) cloned from a golden image, registered as a just-in-time runner that takes exactly one job, isolated with Softnet from the host, the LAN and the tailnet, and deleted afterwards. A slot always has a booted runner waiting. The golden image is rebuilt when GitHub ships a new runner and at least weekly. Labels are `self-hosted, Linux, ARM64` plus any `--runner-label`; `--runner-prepull <image>` bakes service images into the VM. Slots are sized from memory and cores (two on a 16 GB Mac).
 
+  Softnet keeps a VM off the LAN and the tailnet but always lets it reach its bridge gateway, which is the host itself. A pf anchor, `com.apple/300.provision-runner` (rules in `/etc/pf.anchors/provision-runner`), closes that gap. On the vmnet bridges it lets a VM ask the host for DHCP and DNS and refuses everything else, SSH and Screen Sharing included. The LaunchDaemon `dev.provision.runner-firewall` loads it at boot and re-asserts it every five minutes. The anchor sits under `com.apple/*`, so `/etc/pf.conf` stays untouched.
+
   The runner needs one secret: `GITHUB_RUNNER_TOKEN`, a fine-grained token for that repository with Administration read and write, in `~/.provision/runner/credentials.env` (mode 600). Slots wait for it. Then start the first bake with `launchctl kickstart -k gui/$(id -u)/dev.provision.runner-bake`.
 
 Example, run over SSH after racking:

@@ -41,6 +41,8 @@ export type Paths = {
   remoteManagementKickstart: string;
   commandLink: string;
   sudoersDirectory: string;
+  pfAnchorsDirectory: string;
+  launchDaemonsDirectory: string;
 };
 
 export const systemPaths: Paths = {
@@ -53,6 +55,8 @@ export const systemPaths: Paths = {
   remoteManagementKickstart: "/System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart",
   commandLink: "/usr/local/bin/provision",
   sudoersDirectory: "/etc/sudoers.d",
+  pfAnchorsDirectory: "/etc/pf.anchors",
+  launchDaemonsDirectory: "/Library/LaunchDaemons",
 };
 
 export type RunOptions = { input?: string; isInteractive?: boolean; environment?: Record<string, string> };

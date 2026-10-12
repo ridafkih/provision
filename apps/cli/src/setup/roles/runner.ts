@@ -7,6 +7,7 @@ import type { Setup } from "../context";
 import { installedKit } from "../home";
 import { localHostName } from "../system";
 import { runnerAgentTemplates, runnerKitFiles } from "./runner-kit";
+import { applyRunnerFirewall, checkRunnerFirewall } from "./runner-firewall";
 import { applyWorkerRole, checkWorkerRole } from "./worker";
 
 const vmCpuCount = 4;
@@ -122,6 +123,7 @@ export function applyRunnerRole(setup: Setup) {
   const { machine, options } = setup;
   if (!options.runnerRepository) fail("--role runner needs --runner-repo <owner/repo>");
   applyWorkerRole(setup);
+  applyRunnerFirewall(machine);
   mkdirSync(runnerDirectory(machine), { recursive: true, mode: 0o700 });
   for (const directory of [runnerLogDirectory(machine), agentsDirectory(machine)]) mkdirSync(directory, { recursive: true, mode: 0o755 });
   installRunnerKit(machine);
@@ -141,6 +143,7 @@ export function applyRunnerRole(setup: Setup) {
 export function checkRunnerRole(setup: Setup, checklist: Checklist) {
   const { machine, options } = setup;
   checkWorkerRole(setup, checklist);
+  checkRunnerFirewall(machine, checklist);
   const slots = configuredSlots(machine);
   if (slots) checklist.pass(`GitHub runner for ${options.runnerRepository}: ${slots} VM slots`);
   else checklist.miss("GitHub runner configured", "rerun provision --role runner --runner-repo <owner/repo>");
