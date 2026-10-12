@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import {
   addVm,
+  crashVm,
   createSandbox,
   disposeSandbox,
   execStdin,
@@ -12,6 +13,7 @@ import {
   runnerConfigDirectory,
   type Sandbox,
   tartCalls,
+  wedgeGuest,
   writeConfig,
 } from "./runner-sandbox.ts";
 
@@ -101,6 +103,26 @@ describe("run-slot.sh", () => {
     expect(output).toContain("reached its 1 second lifetime");
     expect(tartCalls(sandbox).at(-1)).toBe("delete rack-runner-slot-2");
   });
+
+  it("stops the runner and deletes the clone when the VM exits mid-job", async () => {
+    addVm(sandbox, "runner-linux");
+    const slotRun = runSlot(sandbox, "linux", "1", "60");
+    setTimeout(() => crashVm(sandbox, "rack-runner-slot-1"), 1500);
+    const { output } = await slotRun;
+    expect(output).toContain("lost its VM, which exited");
+    expect(tartCalls(sandbox).at(-1)).toBe("delete rack-runner-slot-1");
+    expect(hasVm(sandbox, "rack-runner-slot-1")).toBe(false);
+  });
+
+  it("stops the runner and deletes the clone when the guest stops answering", async () => {
+    addVm(sandbox, "runner-macos");
+    writeConfig(sandbox, macosConfig);
+    const slotRun = runSlot(sandbox, "macos", "1", "60");
+    setTimeout(() => wedgeGuest(sandbox, "rack-runner-macos-slot-1"), 1500);
+    const { output } = await slotRun;
+    expect(output).toContain("lost its VM, which missed 2 guest agent probes");
+    expect(tartCalls(sandbox).at(-1)).toBe("delete rack-runner-macos-slot-1");
+  }, 15_000);
 
   it("refuses to start with a config key missing and names it", async () => {
     addVm(sandbox, "runner-linux");

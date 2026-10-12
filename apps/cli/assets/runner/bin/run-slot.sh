@@ -18,10 +18,10 @@ readonly runner_prefix="$RUNNER_NAME_PREFIX-${pool_name_tag}$slot-"
 readonly runner_name="$runner_prefix$(date +%s)"
 vm_pid=""
 runner_pid=""
-lifetime_watch_pid=""
+runner_watch_pid=""
 
 finish() {
-  [[ -z "$lifetime_watch_pid" ]] || kill "$lifetime_watch_pid" 2>/dev/null || true
+  [[ -z "$runner_watch_pid" ]] || kill "$runner_watch_pid" 2>/dev/null || true
   [[ -z "$runner_pid" ]] || kill "$runner_pid" 2>/dev/null || true
   discard_vm "$vm_name"
   [[ -z "$vm_pid" ]] || wait "$vm_pid" 2>/dev/null || true
@@ -34,13 +34,35 @@ back_off() {
   exit 1
 }
 
-watch_lifetime() {
+stop_runner() {
+  log "$pool_name slot $slot: $runner_name $1"
+  kill "$runner_pid" 2>/dev/null || true
+}
+
+watch_runner() {
   local deadline=$((SECONDS + RUNNER_LIFETIME_SECONDS))
+  local next_probe=$((SECONDS + GUEST_PROBE_INTERVAL_SECONDS))
+  local missed_probes=0
   while kill -0 "$runner_pid" 2>/dev/null; do
     if ((SECONDS >= deadline)); then
-      log "$pool_name slot $slot: $runner_name reached its $RUNNER_LIFETIME_SECONDS second lifetime"
-      kill "$runner_pid" 2>/dev/null || true
+      stop_runner "reached its $RUNNER_LIFETIME_SECONDS second lifetime"
       return 0
+    fi
+    if ! kill -0 "$vm_pid" 2>/dev/null; then
+      stop_runner "lost its VM, which exited"
+      return 0
+    fi
+    if ((SECONDS >= next_probe)); then
+      if guest_answers "$vm_name"; then
+        missed_probes=0
+      else
+        missed_probes=$((missed_probes + 1))
+        if ((missed_probes >= GUEST_PROBE_FAILURES)); then
+          stop_runner "lost its VM, which missed $missed_probes guest agent probes"
+          return 0
+        fi
+      fi
+      next_probe=$((SECONDS + GUEST_PROBE_INTERVAL_SECONDS))
     fi
     sleep 1
   done
@@ -62,8 +84,8 @@ log "$pool_name slot $slot: $runner_name is waiting for a job"
 printf '%s\n' "$jit_config" | tart exec -i "$vm_name" sudo -u admin -H bash -c \
   'read -r jit_config && cd "$HOME/actions-runner" && exec ./run.sh --jitconfig "$jit_config"' &
 runner_pid=$!
-watch_lifetime &
-lifetime_watch_pid=$!
+watch_runner &
+runner_watch_pid=$!
 
 if wait "$runner_pid"; then
   log "$pool_name slot $slot: $runner_name finished"

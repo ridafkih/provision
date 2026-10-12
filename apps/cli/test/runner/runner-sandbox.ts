@@ -105,6 +105,9 @@ const configLines = (sandbox: Sandbox, overrides: Record<string, string>) => {
     PREPULL_IMAGES: "postgres:18,amazon/dynamodb-local:3.3.1",
     BOOT_TIMEOUT_SECONDS: "10",
     RETRY_DELAY_SECONDS: "0",
+    GUEST_PROBE_INTERVAL_SECONDS: "1",
+    GUEST_PROBE_TIMEOUT_SECONDS: "1",
+    GUEST_PROBE_FAILURES: "2",
     CREDENTIALS_FILE: join(sandbox.home, ".provision/runner/credentials.env"),
     LOG_DIRECTORY: join(sandbox.root, "logs"),
     MACOS_SLOTS: "0",
@@ -172,3 +175,7 @@ export const addVm = (sandbox: Sandbox, vmName: string) => writeFileSync(join(sa
 export const hasVm = (sandbox: Sandbox, vmName: string) => existsSync(join(sandbox.tartState, "vms", vmName));
 
 export const execStdin = (sandbox: Sandbox) => readFileSync(join(sandbox.tartState, "exec-stdin"), "utf8");
+
+export const crashVm = (sandbox: Sandbox, vmName: string) => writeFileSync(join(sandbox.tartState, `crashed-${vmName}`), "");
+
+export const wedgeGuest = (sandbox: Sandbox, vmName: string) => writeFileSync(join(sandbox.tartState, `wedged-${vmName}`), "");

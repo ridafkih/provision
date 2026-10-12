@@ -23,3 +23,19 @@ wait_for_guest_agent() {
   done
   fail "$target_vm did not answer tart exec within $BOOT_TIMEOUT_SECONDS seconds"
 }
+
+guest_answers() {
+  local target_vm="$1"
+  tart exec "$target_vm" true >/dev/null 2>&1 &
+  local probe_pid=$!
+  local deadline=$((SECONDS + GUEST_PROBE_TIMEOUT_SECONDS))
+  while kill -0 "$probe_pid" 2>/dev/null; do
+    if ((SECONDS >= deadline)); then
+      kill "$probe_pid" 2>/dev/null || true
+      wait "$probe_pid" 2>/dev/null || true
+      return 1
+    fi
+    sleep 1
+  done
+  wait "$probe_pid"
+}
