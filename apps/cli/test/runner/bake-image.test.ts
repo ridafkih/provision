@@ -142,4 +142,9 @@ describe("bake-image.sh", () => {
     expect(calls).not.toContain("prune --entries=caches --space-budget=0");
     expect(calls).toContain(`clone ${pinned} runner-macos-staging`);
   });
+
+  it.each(["prepare-linux-vm.sh", "prepare-macos-vm.sh"])("has %s flush the guest's disk before the bake stops the VM", (script) => {
+    const lines = readFileSync(join(runnerRoleDirectory, "bake", script), "utf8").trim().split("\n");
+    expect(lines.slice(-3)).toContain("sync");
+  });
 });

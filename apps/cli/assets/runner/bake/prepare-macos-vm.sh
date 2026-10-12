@@ -20,3 +20,4 @@ chown -R admin:staff "$runner_home"
 xcode="$(xcodebuild -version | head -n 1)"
 swift_version="$(swift --version 2>&1 | head -n 1)"
 printf 'provisioned: actions runner %s with %s (%s)\n' "$runner_version" "$xcode" "$swift_version"
+sync
