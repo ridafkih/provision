@@ -26,6 +26,7 @@ const macosConfig = {
   MACOS_GOLDEN_VM: "runner-macos",
   MACOS_RUNNER_LABELS: "self-hosted,macOS,ARM64,app-swift",
   MACOS_VM_MEMORY_MB: "6144",
+  MACOS_PULL_FREE_GB: "1",
 };
 
 describe("run-slot.sh", () => {

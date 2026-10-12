@@ -9,6 +9,7 @@ readonly runner_required_keys=(
   LINUX_BASE_IMAGE
   LINUX_GOLDEN_VM
   LINUX_SLOTS
+  LINUX_PULL_FREE_GB
   VM_CPU_COUNT
   VM_MEMORY_MB
   VM_DISK_GB
@@ -28,6 +29,7 @@ readonly macos_required_keys=(
   MACOS_GOLDEN_VM
   MACOS_RUNNER_LABELS
   MACOS_VM_MEMORY_MB
+  MACOS_PULL_FREE_GB
 )
 
 fail() {

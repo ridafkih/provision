@@ -45,6 +45,7 @@ export function runnerConfig({ machine, options }: Setup) {
     "LINUX_BASE_IMAGE=ghcr.io/cirruslabs/ubuntu-runner-arm64:24.04",
     "LINUX_GOLDEN_VM=runner-linux",
     `LINUX_SLOTS=${runnerSlotCount(machine, macosSlotCount(options))}`,
+    "LINUX_PULL_FREE_GB=40",
     `VM_CPU_COUNT=${vmCpuCount}`,
     `VM_MEMORY_MB=${vmMemoryMb}`,
     "VM_DISK_GB=80",
@@ -63,6 +64,7 @@ export function runnerConfig({ machine, options }: Setup) {
     "MACOS_GOLDEN_VM=runner-macos",
     `MACOS_RUNNER_LABELS=${["self-hosted", "macOS", "ARM64", ...options.runnerMacosLabels].join(",")}`,
     `MACOS_VM_MEMORY_MB=${macosVmMemoryMb}`,
+    "MACOS_PULL_FREE_GB=100",
   ].join("\n");
 }
 

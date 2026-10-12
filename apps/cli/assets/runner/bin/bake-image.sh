@@ -39,6 +39,22 @@ prepare_arguments() {
   printf '%s\n' ${prepull_images[@]+"${prepull_images[@]}"}
 }
 
+free_disk_gb() {
+  df -k "$HOME" | awk 'NR == 2 { print int($4 / 1048576) }'
+}
+
+is_pull_free() {
+  [[ "$pool_base_image" == *@sha256:* ]] && vm_exists "$pool_base_image"
+}
+
+has_pull_space() {
+  is_pull_free && return 0
+  (($(free_disk_gb) >= pool_pull_free_gb)) && return 0
+  log "only $(free_disk_gb) GB free, $pool_pull_free_gb GB needed to pull $pool_base_image; clearing Tart's image cache"
+  tart prune --entries=caches --space-budget=0
+  (($(free_disk_gb) >= pool_pull_free_gb))
+}
+
 bake_pool() {
   select_pool "$1"
   local runner_version runner_url runner_sha256
@@ -47,6 +63,11 @@ bake_pool() {
 
   if is_golden_current "$runner_version"; then
     log "unchanged: $pool_golden_vm already has actions runner $runner_version and is under $BAKE_MAX_AGE_DAYS days old"
+    return 0
+  fi
+
+  if ! has_pull_space; then
+    log "skipped: $pool_golden_vm stays as it is, $(free_disk_gb) GB free is less than the $pool_pull_free_gb GB a pull of $pool_base_image needs"
     return 0
   fi
 

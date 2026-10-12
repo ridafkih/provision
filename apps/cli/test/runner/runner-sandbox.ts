@@ -3,7 +3,7 @@ import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSy
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 export const runnerRoleDirectory = resolve(import.meta.dirname, "../../assets/runner");
 export const jitConfig = "jit-config-for-one-job";
@@ -97,6 +97,7 @@ const configLines = (sandbox: Sandbox, overrides: Record<string, string>) => {
     LINUX_BASE_IMAGE: "ghcr.io/cirruslabs/ubuntu-runner-arm64:24.04",
     LINUX_GOLDEN_VM: "runner-linux",
     LINUX_SLOTS: "2",
+    LINUX_PULL_FREE_GB: "1",
     VM_CPU_COUNT: "4",
     VM_MEMORY_MB: "6144",
     VM_DISK_GB: "80",
@@ -170,7 +171,11 @@ export const tartCalls = (sandbox: Sandbox) =>
     ? readFileSync(join(sandbox.tartState, "calls.log"), "utf8").trim().split("\n")
     : [];
 
-export const addVm = (sandbox: Sandbox, vmName: string) => writeFileSync(join(sandbox.tartState, "vms", vmName), "");
+export const addVm = (sandbox: Sandbox, vmName: string) => {
+  const path = join(sandbox.tartState, "vms", vmName);
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, "");
+};
 
 export const hasVm = (sandbox: Sandbox, vmName: string) => existsSync(join(sandbox.tartState, "vms", vmName));
 

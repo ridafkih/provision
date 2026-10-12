@@ -27,6 +27,15 @@ const recordBake = (sandbox: Sandbox, version: string, daysAgo: number) => {
   );
 };
 
+const macosConfig = {
+  MACOS_SLOTS: "1",
+  MACOS_BASE_IMAGE: "ghcr.io/cirruslabs/macos-tahoe-xcode:26.5",
+  MACOS_GOLDEN_VM: "runner-macos",
+  MACOS_RUNNER_LABELS: "self-hosted,macOS,ARM64,app-swift",
+  MACOS_VM_MEMORY_MB: "6144",
+  MACOS_PULL_FREE_GB: "1",
+};
+
 describe("bake-image.sh", () => {
   let sandbox: Sandbox;
 
@@ -87,13 +96,7 @@ describe("bake-image.sh", () => {
   });
 
   it("bakes the macOS image after the Linux one, with the macOS runner, no service images and the image's own disk", async () => {
-    writeConfig(sandbox, {
-      MACOS_SLOTS: "1",
-      MACOS_BASE_IMAGE: "ghcr.io/cirruslabs/macos-tahoe-xcode:26.5",
-      MACOS_GOLDEN_VM: "runner-macos",
-      MACOS_RUNNER_LABELS: "self-hosted,macOS,ARM64,app-swift",
-      MACOS_VM_MEMORY_MB: "6144",
-    });
+    writeConfig(sandbox, macosConfig);
     addVm(sandbox, "runner-linux");
     recordBake(sandbox, "2.338.0", 1);
     const { status, output } = await bake(sandbox);
@@ -110,5 +113,32 @@ describe("bake-image.sh", () => {
     expect(calls.some((call) => call.startsWith("clone ghcr.io/cirruslabs/ubuntu-runner-arm64"))).toBe(false);
     expect(execStdin(sandbox)).toBe(readFileSync(join(runnerRoleDirectory, "bake/prepare-macos-vm.sh"), "utf8"));
     expect(readFileSync(join(runnerConfigDirectory(sandbox), "golden-macos.env"), "utf8")).toContain("BAKED_RUNNER_VERSION=2.338.0");
+  });
+
+  it("keeps the old macOS image and skips its bake when the disk cannot hold the pull", async () => {
+    writeConfig(sandbox, { ...macosConfig, MACOS_PULL_FREE_GB: "999999" });
+    addVm(sandbox, "runner-linux");
+    recordBake(sandbox, "2.338.0", 1);
+    const { status, output } = await bake(sandbox);
+    expect({ status, output }).toMatchObject({ status: 0 });
+    expect(output).toContain("clearing Tart's image cache");
+    expect(output).toContain("skipped: runner-macos stays as it is");
+    const calls = tartCalls(sandbox);
+    expect(calls).toContain("prune --entries=caches --space-budget=0");
+    expect(calls.some((call) => call.startsWith("pull ghcr.io/cirruslabs/macos"))).toBe(false);
+    expect(calls.some((call) => call.startsWith("clone ghcr.io/cirruslabs/macos"))).toBe(false);
+  });
+
+  it("bakes from a cached image pinned by digest without needing room for a pull", async () => {
+    const pinned = "ghcr.io/cirruslabs/macos-tahoe-xcode@sha256:abc";
+    writeConfig(sandbox, { ...macosConfig, MACOS_BASE_IMAGE: pinned, MACOS_PULL_FREE_GB: "999999" });
+    addVm(sandbox, "runner-linux");
+    addVm(sandbox, pinned);
+    recordBake(sandbox, "2.338.0", 1);
+    const { status, output } = await bake(sandbox);
+    expect({ status, output }).toMatchObject({ status: 0 });
+    const calls = tartCalls(sandbox);
+    expect(calls).not.toContain("prune --entries=caches --space-budget=0");
+    expect(calls).toContain(`clone ${pinned} runner-macos-staging`);
   });
 });
