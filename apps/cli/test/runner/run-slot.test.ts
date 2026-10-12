@@ -50,6 +50,12 @@ describe("run-slot.sh", () => {
     expect(body.name).toMatch(/^rack-runner-1-\d+$/);
   });
 
+  it("runs without shell errors", async () => {
+    addVm(sandbox, "runner-linux");
+    const { output } = await runSlot(sandbox, "1", "0");
+    expect(output).not.toContain("readonly variable");
+  });
+
   it("hands the runner its config on stdin, never on a command line", async () => {
     addVm(sandbox, "runner-linux");
     await runSlot(sandbox, "1", "0");

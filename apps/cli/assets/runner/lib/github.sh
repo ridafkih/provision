@@ -10,9 +10,9 @@ github_api() {
 }
 
 create_jit_config() {
-  local runner_name="$1"
+  local name="$1"
   jq --null-input --compact-output \
-    --arg name "$runner_name" \
+    --arg name "$name" \
     --arg labels "$RUNNER_LABELS" \
     '{name: $name, runner_group_id: 1, labels: ($labels | split(",")), work_folder: "_work"}' \
     | github_api POST "/repos/$GITHUB_REPOSITORY/actions/runners/generate-jitconfig" --data @- \
