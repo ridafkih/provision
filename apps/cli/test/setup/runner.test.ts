@@ -1,6 +1,8 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { createChecklist, renderChecklist } from "../../src/core/checklist";
-import { renderRunnerAgent, runnerConfig, runnerSlotCount } from "../../src/setup/roles/runner";
+import { bootOutAgent, renderRunnerAgent, runnerConfig, runnerSlotCount } from "../../src/setup/roles/runner";
 import { checkRunnerRole } from "../../src/setup/roles/runner";
 import { runnerAgentTemplates } from "../../src/setup/roles/runner-kit";
 import { addFakeCommand, createSandbox, disposeSandbox, setupOf, type Sandbox } from "../sandbox";
@@ -98,5 +100,18 @@ describe("runner role config", () => {
     expect(agent).toContain("<string>macos</string>\n    <string>1</string>");
     expect(agent).toContain(`<string>${sandbox.home}/Library/Logs/provision/macos-slot-1.log</string>`);
     expect(agent).not.toContain("@");
+  });
+
+  it("waits for a booted-out slot to finish tearing down before going on", () => {
+    addFakeCommand(
+      sandbox,
+      "launchctl",
+      `case "$1" in
+  bootout) echo 3 > "$HOME/unloading" ;;
+  print) left=$(cat "$HOME/unloading"); [ "$left" -gt 0 ] || exit 1; echo $((left - 1)) > "$HOME/unloading" ;;
+esac`,
+    );
+    bootOutAgent(sandbox.machine, "gui/501", "dev.provision.runner-slot-1");
+    expect(readFileSync(join(sandbox.home, "unloading"), "utf8").trim()).toBe("0");
   });
 });

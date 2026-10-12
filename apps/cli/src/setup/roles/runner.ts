@@ -105,6 +105,17 @@ export function installRunnerKit(machine: Machine) {
   else unchanged(machine, `runner scripts in ${kit}`);
 }
 
+const agentUnloadWaitMilliseconds = 180_000;
+
+export function bootOutAgent(machine: Machine, domain: string, label: string) {
+  run(machine, ["launchctl", "bootout", `${domain}/${label}`]);
+  const deadline = Date.now() + agentUnloadWaitMilliseconds;
+  while (succeeds(machine, ["launchctl", "print", `${domain}/${label}`])) {
+    if (Date.now() > deadline) fail(`${label} did not unload within ${agentUnloadWaitMilliseconds / 1000} seconds`);
+    Bun.sleepSync(500);
+  }
+}
+
 function ensureRunnerAgent(machine: Machine, label: string, contents: string) {
   const plist = join(agentsDirectory(machine), `${label}.plist`);
   const domain = `gui/${output(machine, ["id", "-u"])}`;
@@ -112,7 +123,7 @@ function ensureRunnerAgent(machine: Machine, label: string, contents: string) {
     unchanged(machine, `${label} loaded`);
     return;
   }
-  run(machine, ["launchctl", "bootout", `${domain}/${label}`]);
+  bootOutAgent(machine, domain, label);
   writeFileSync(plist, `${contents}\n`);
   if (!succeeds(machine, ["plutil", "-lint", plist])) fail(`${plist} is not a valid property list`);
   if (!succeeds(machine, ["launchctl", "bootstrap", domain, plist])) fail(`launchctl could not load ${label}`);
@@ -127,7 +138,7 @@ function removeExtraRunnerAgents(machine: Machine, pool: RunnerPool, slots: numb
   for (const name of readdirSync(directory).filter((each) => slotAgentPattern[pool].test(each))) {
     const label = basename(name, ".plist");
     if (Number(label.split("-").pop()) <= slots) continue;
-    run(machine, ["launchctl", "bootout", `gui/${uid}/${label}`]);
+    bootOutAgent(machine, `gui/${uid}`, label);
     rmSync(join(directory, name), { force: true });
     changed(machine, `${label} removed`);
   }
