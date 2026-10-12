@@ -24,7 +24,13 @@ chown -R admin:admin "$runner_home"
 "$runner_home/bin/installdependencies.sh" >/dev/null
 [[ "$(sudo -u admin "$runner_home/config.sh" --version)" == "$runner_version" ]]
 
-systemctl enable --now docker
+readonly docker_config="/etc/docker/daemon.json"
+install -d /etc/docker
+[[ -s "$docker_config" ]] || printf '{}\n' >"$docker_config"
+jq '. + {"bip": "192.168.128.1/24", "default-address-pools": [{"base": "192.168.160.0/19", "size": 24}]}' "$docker_config" >"$docker_config.next"
+mv "$docker_config.next" "$docker_config"
+systemctl enable docker
+systemctl restart docker
 for image in "$@"; do
   docker pull --quiet "$image"
 done
