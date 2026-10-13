@@ -2,10 +2,11 @@ readonly runner_config_directory="$HOME/.provision/runner"
 readonly runner_config_file="$runner_config_directory/runner.env"
 readonly runner_required_keys=(
   GITHUB_API_URL
-  GITHUB_REPOSITORY
+  GITHUB_REPOSITORIES
   RUNNER_NAME_PREFIX
   RUNNER_LABELS
   RUNNER_LIFETIME_SECONDS
+  DEMAND_CHECK_INTERVAL_SECONDS
   LINUX_BASE_IMAGE
   LINUX_GOLDEN_VM
   LINUX_SLOTS
@@ -54,9 +55,37 @@ load_runner_config() {
   [[ -z "$missing" ]] || fail "$runner_config_file is missing: ${missing% }"
   [[ -n "${PREPULL_IMAGES+set}" ]] || fail "$runner_config_file is missing: PREPULL_IMAGES"
   [[ "$MACOS_SLOTS" =~ ^[01]$ ]] || fail "$runner_config_file: MACOS_SLOTS must be 0 or 1"
+  load_repositories
   if ((MACOS_SLOTS > 0)); then
     missing="$(missing_keys "${macos_required_keys[@]}")"
     [[ -z "$missing" ]] || fail "$runner_config_file is missing: ${missing% }"
+  fi
+}
+
+load_repositories() {
+  repositories=()
+  repository_labels=()
+  local entries entry
+  IFS=',' read -r -a entries <<<"$GITHUB_REPOSITORIES"
+  for entry in "${entries[@]}"; do
+    [[ "$entry" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(=[A-Za-z0-9_.-]+)?$ ]] \
+      || fail "$runner_config_file: GITHUB_REPOSITORIES entry '$entry' is not owner/repo or owner/repo=label"
+    repositories+=("${entry%%=*}")
+    if [[ "$entry" == *=* ]]; then
+      repository_labels+=("${entry#*=}")
+    else
+      repository_labels+=("")
+    fi
+  done
+  ((${#repositories[@]} > 0)) || fail "$runner_config_file: GITHUB_REPOSITORIES names no repository"
+}
+
+registration_labels() {
+  local index="$1"
+  if [[ -n "${repository_labels[$index]}" ]]; then
+    printf '%s,%s' "$pool_labels" "${repository_labels[$index]}"
+  else
+    printf '%s' "$pool_labels"
   fi
 }
 

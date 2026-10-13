@@ -22,11 +22,19 @@ describe("runner role config", () => {
   it("labels the runner, names it after the host and bakes the prepulled images", () => {
     fakeHost(sandbox, 16 * 1024 ** 3, 10);
     const config = runnerConfig(setupOf(sandbox, ["--runner-repo", "example/app", "--runner-label", "app", "--runner-prepull", "postgres:18", "--runner-prepull", "redis:8"]));
-    expect(config).toContain("GITHUB_REPOSITORY=example/app\n");
+    expect(config).toContain("GITHUB_REPOSITORIES=example/app\n");
     expect(config).toContain("RUNNER_LABELS=self-hosted,Linux,ARM64,app\n");
     expect(config).toContain("RUNNER_NAME_PREFIX=rack-mini\n");
     expect(config).toContain("PREPULL_IMAGES=postgres:18,redis:8\n");
     expect(config).toContain("LINUX_SLOTS=2\n");
+  });
+
+  it("shares one pool between every repository it serves, each with its own label", () => {
+    fakeHost(sandbox, 16 * 1024 ** 3, 10);
+    const config = runnerConfig(setupOf(sandbox, ["--runner-repo", "example/app=app", "--runner-repo", "example/tool=tool"]));
+    expect(config).toContain("GITHUB_REPOSITORIES=example/app=app,example/tool=tool\n");
+    expect(config).toContain("RUNNER_LABELS=self-hosted,Linux,ARM64\n");
+    expect(config).toContain("DEMAND_CHECK_INTERVAL_SECONDS=30\n");
   });
 
   it("keeps the base labels and an empty prepull list when none are given", () => {

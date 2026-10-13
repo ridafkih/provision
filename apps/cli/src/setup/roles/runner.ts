@@ -38,10 +38,11 @@ export function runnerSlotCount(machine: Machine, macosSlots: number) {
 export function runnerConfig({ machine, options }: Setup) {
   return [
     "GITHUB_API_URL=https://api.github.com",
-    `GITHUB_REPOSITORY=${options.runnerRepository}`,
+    `GITHUB_REPOSITORIES=${options.runnerRepositories.join(",")}`,
     `RUNNER_NAME_PREFIX=${localHostName(machine).toLowerCase()}`,
     `RUNNER_LABELS=${["self-hosted", "Linux", "ARM64", ...options.runnerLabels].join(",")}`,
     "RUNNER_LIFETIME_SECONDS=21600",
+    "DEMAND_CHECK_INTERVAL_SECONDS=30",
     "LINUX_BASE_IMAGE=ghcr.io/cirruslabs/ubuntu-runner-arm64:24.04",
     "LINUX_GOLDEN_VM=runner-linux",
     `LINUX_SLOTS=${runnerSlotCount(machine, macosSlotCount(options))}`,
@@ -162,7 +163,7 @@ const configuredSlots = (machine: Machine) => configuredValue(machine, "LINUX_SL
 
 export function applyRunnerRole(setup: Setup) {
   const { machine, options } = setup;
-  if (!options.runnerRepository) fail("--role runner needs --runner-repo <owner/repo>");
+  if (options.runnerRepositories.length === 0) fail("--role runner needs --runner-repo <owner/repo>");
   applyWorkerRole(setup);
   applyRunnerFirewall(machine);
   mkdirSync(runnerDirectory(machine), { recursive: true, mode: 0o700 });
@@ -183,6 +184,8 @@ export function applyRunnerRole(setup: Setup) {
   }
 }
 
+const repositoryNames = (options: Setup["options"]) => options.runnerRepositories.map((entry) => entry.split("=")[0]).join(" and ");
+
 export function checkRunnerRole(setup: Setup, checklist: Checklist) {
   const { machine, options } = setup;
   checkWorkerRole(setup, checklist);
@@ -190,14 +193,14 @@ export function checkRunnerRole(setup: Setup, checklist: Checklist) {
   const slots = configuredSlots(machine);
   const macosSlots = Number(configuredValue(machine, "MACOS_SLOTS") ?? "0");
   const macosNote = macosSlots > 0 ? ` and ${macosSlots} macOS` : "";
-  if (slots) checklist.pass(`GitHub runner for ${options.runnerRepository}: ${slots} Linux${macosNote} VM slots`);
+  if (slots) checklist.pass(`GitHub runner for ${repositoryNames(options)}: ${slots} Linux${macosNote} VM slots`);
   else checklist.miss("GitHub runner configured", "rerun provision --role runner --runner-repo <owner/repo>");
   const credentials = readIfPresent(join(runnerDirectory(machine), "credentials.env")) ?? "";
   if (/^GITHUB_RUNNER_TOKEN=.+/m.test(credentials)) checklist.pass("Runner token in place");
   else
     checklist.waitingOnOwner(
       "Runner token",
-      `put GITHUB_RUNNER_TOKEN=<fine-grained token, Administration read and write on ${options.runnerRepository}> in ${runnerDirectory(machine)}/credentials.env (mode 600), then: launchctl kickstart -k gui/${output(machine, ["id", "-u"])}/dev.provision.runner-bake`,
+      `put GITHUB_RUNNER_TOKEN=<fine-grained token, Administration read and write on ${repositoryNames(options)}> in ${runnerDirectory(machine)}/credentials.env (mode 600), then: launchctl kickstart -k gui/${output(machine, ["id", "-u"])}/dev.provision.runner-bake`,
     );
   if (existsSync(join(runnerDirectory(machine), "golden.env"))) checklist.pass("Linux runner VM image baked");
   else checklist.note("The Linux runner VM image bakes once the token is in place (about 15 minutes)");

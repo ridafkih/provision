@@ -15,7 +15,7 @@ export type Options = {
   runnerLabels: string[];
   requestedGrants: string[];
   runnerPrepullImages: string[];
-  runnerRepository: string;
+  runnerRepositories: string[];
   runnerMacosImage: string;
   runnerMacosLabels: string[];
   wantedHostname: string;
@@ -32,7 +32,7 @@ export const emptyOptions = (): Options => ({
   runnerLabels: [],
   requestedGrants: [],
   runnerPrepullImages: [],
-  runnerRepository: "",
+  runnerRepositories: [],
   runnerMacosImage: "",
   runnerMacosLabels: [],
   wantedHostname: "",
@@ -54,7 +54,9 @@ export const usage = `provision: set up this Mac to run headless, slim it down, 
   --hostname <name>         name the Mac and its tailnet device
   --role runner             host ephemeral GitHub Actions runner VMs (needs --runner-repo)
   --role worker             host Tart VMs
-  --runner-repo <owner/repo>
+  --runner-repo <owner/repo>[=<label>]
+                            serve this repository's jobs, adding the label to its runners (repeatable;
+                            the slots share one pool and go where jobs are waiting, earlier repositories first)
   --runner-label <label>    extra runner label beyond self-hosted, Linux, ARM64 (repeatable)
   --runner-prepull <image>  container image to bake into the runner VM (repeatable)
   --runner-macos-image <ref>
@@ -70,6 +72,8 @@ export const usage = `provision: set up this Mac to run headless, slim it down, 
   --version
   --help
 `;
+
+const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(=[A-Za-z0-9_.-]+)?$/;
 
 const grantPattern = /^(all|full-disk-access|screen-recording|accessibility):\//;
 
@@ -102,9 +106,12 @@ export function parseArguments(argumentList: readonly string[], options: Options
         options.roles.push(role as Role);
         break;
       }
-      case "--runner-repo":
-        options.runnerRepository = valueOf(argumentsLeft, "--runner-repo needs owner/repo");
+      case "--runner-repo": {
+        const repository = valueOf(argumentsLeft, "--runner-repo needs owner/repo");
+        if (!repositoryPattern.test(repository)) fail(`--runner-repo takes owner/repo or owner/repo=label, not '${repository}'`);
+        options.runnerRepositories.push(repository);
         break;
+      }
       case "--runner-label":
         options.runnerLabels.push(valueOf(argumentsLeft, "--runner-label needs a label"));
         break;

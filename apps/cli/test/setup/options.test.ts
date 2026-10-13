@@ -15,7 +15,16 @@ describe("arguments", () => {
 
   it("collects repeatable flags and roles", () => {
     const options = parseArguments(["--github", "one", "--github", "two", "--ssh-key", workerKey, "--role", "runner", "--role", "worker", "--runner-repo", "o/r", "--runner-label", "app", "--hostname", "rack-1"]);
-    expect(options).toMatchObject({ githubUsers: ["one", "two"], extraPublicKeys: [workerKey], roles: ["runner", "worker"], runnerRepository: "o/r", runnerLabels: ["app"], wantedHostname: "rack-1" });
+    expect(options).toMatchObject({ githubUsers: ["one", "two"], extraPublicKeys: [workerKey], roles: ["runner", "worker"], runnerRepositories: ["o/r"], runnerLabels: ["app"], wantedHostname: "rack-1" });
+  });
+
+  it("collects several runner repositories, each with an optional label", () => {
+    const options = parseArguments(["--runner-repo", "o/app=app", "--runner-repo", "o/tool"]);
+    expect(options.runnerRepositories).toEqual(["o/app=app", "o/tool"]);
+  });
+
+  it("refuses a runner repository that is not owner/repo", () => {
+    expect(() => parseArguments(["--runner-repo", "app=app"])).toThrow("--runner-repo takes owner/repo or owner/repo=label");
   });
 
   it("refuses an unknown role", () => {

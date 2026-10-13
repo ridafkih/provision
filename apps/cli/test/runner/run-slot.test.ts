@@ -7,6 +7,7 @@ import {
   createSandbox,
   disposeSandbox,
   execStdin,
+  fakeRepository,
   hasVm,
   jitConfig,
   runKitScript,
@@ -27,6 +28,20 @@ const macosConfig = {
   MACOS_RUNNER_LABELS: "self-hosted,macOS,ARM64,app-swift",
   MACOS_VM_MEMORY_MB: "6144",
   MACOS_PULL_FREE_GB: "1",
+};
+
+const registrations = (sandbox: Sandbox) =>
+  sandbox.requests
+    .filter((request) => request.method === "POST")
+    .map((request) => ({ path: request.path, labels: (JSON.parse(request.body) as { labels: string[] }).labels }));
+const whenRegistered = (sandbox: Sandbox, repository: string, then: () => void) => {
+  const poll = setInterval(() => {
+    const runner = sandbox.github.repositories[repository]?.runners.find((each) => each.id === 900);
+    if (!runner) return;
+    clearInterval(poll);
+    runner.status = "online";
+    then();
+  }, 50);
 };
 
 describe("run-slot.sh", () => {
@@ -165,5 +180,94 @@ describe("run-slot.sh", () => {
     expect(status).toBe(1);
     expect(output).toContain("no macOS runner slot");
     expect(tartCalls(sandbox)).toEqual([]);
+  });
+
+  describe("shared between repositories", () => {
+    const sharedConfig = { GITHUB_REPOSITORIES: "example/app=app,example/tool=tool", RUNNER_LABELS: "self-hosted,Linux,ARM64" };
+    const toolJob = ["self-hosted", "Linux", "ARM64", "tool"];
+    const appJob = ["self-hosted", "Linux", "ARM64", "app"];
+    beforeEach(() => {
+      sandbox.github.repositories["example/tool"] = fakeRepository();
+      writeConfig(sandbox, sharedConfig);
+      addVm(sandbox, "runner-linux");
+    });
+
+    it("waits on the first repository when no repository has jobs queued", async () => {
+      const { status } = await runSlot(sandbox, "linux", "1", "0");
+      expect(status).toBe(0);
+      expect(registrations(sandbox)).toEqual([
+        { path: "/repos/example/app/actions/runners/generate-jitconfig", labels: ["self-hosted", "Linux", "ARM64", "app"] },
+      ]);
+    });
+
+    it("registers with the repository whose jobs are waiting, under that repository's label", async () => {
+      sandbox.github.repositories["example/tool"]!.queuedJobLabels.push(toolJob);
+      const { status, output } = await runSlot(sandbox, "linux", "1", "0");
+      expect({ status, output }).toMatchObject({ status: 0 });
+      expect(output).toContain("waiting for a job from example/tool");
+      expect(registrations(sandbox)).toEqual([
+        { path: "/repos/example/tool/actions/runners/generate-jitconfig", labels: ["self-hosted", "Linux", "ARM64", "tool"] },
+      ]);
+    });
+
+    it("prefers the earlier repository when both have jobs waiting", async () => {
+      sandbox.github.repositories["example/app"]!.queuedJobLabels.push(appJob);
+      sandbox.github.repositories["example/tool"]!.queuedJobLabels.push(toolJob);
+      await runSlot(sandbox, "linux", "1", "0");
+      expect(registrations(sandbox).map((registration) => registration.path)).toEqual(["/repos/example/app/actions/runners/generate-jitconfig"]);
+    });
+
+    it("ignores jobs that ask for labels this pool does not offer", async () => {
+      sandbox.github.repositories["example/tool"]!.queuedJobLabels.push(["self-hosted", "macOS", "ARM64", "tool"]);
+      await runSlot(sandbox, "linux", "1", "0");
+      expect(registrations(sandbox).map((registration) => registration.path)).toEqual(["/repos/example/app/actions/runners/generate-jitconfig"]);
+    });
+
+    it("hands an idle runner's slot to a repository whose jobs start waiting", async () => {
+      const slotRun = runSlot(sandbox, "linux", "1", "60");
+      whenRegistered(sandbox, "example/app", () => sandbox.github.repositories["example/tool"]!.queuedJobLabels.push(toolJob));
+      const { output } = await slotRun;
+      expect(output).toContain("handed its slot to example/tool, which has jobs waiting");
+      expect(sandbox.requests.some((request) => request.method === "DELETE" && request.path === "/repos/example/app/actions/runners/900")).toBe(true);
+      expect(sandbox.github.repositories["example/app"]!.runners.some((runner) => runner.id === 900)).toBe(false);
+      expect(tartCalls(sandbox).at(-1)).toBe("delete rack-runner-slot-1");
+    }, 15_000);
+
+    it("keeps a busy runner on its job however long other repositories wait", async () => {
+      sandbox.github.repositories["example/tool"]!.queuedJobLabels.push(toolJob);
+      sandbox.github.repositories["example/tool"]!.runners.push({ id: 5, name: "other-host-1-1", status: "online", busy: true, labels: [] });
+      const slotRun = runSlot(sandbox, "linux", "1", "4");
+      whenRegistered(sandbox, "example/tool", () => {
+        sandbox.github.repositories["example/tool"]!.runners.find((runner) => runner.id === 900)!.busy = true;
+        sandbox.github.repositories["example/app"]!.queuedJobLabels.push(appJob);
+      });
+      const { output } = await slotRun;
+      expect(output).not.toContain("handed its slot");
+      expect(output).toContain("finished");
+    }, 15_000);
+
+    it("stays with its repository while that repository has more jobs waiting than idle runners", async () => {
+      sandbox.github.repositories["example/app"]!.queuedJobLabels.push(appJob);
+      const slotRun = runSlot(sandbox, "linux", "1", "4");
+      whenRegistered(sandbox, "example/app", () => sandbox.github.repositories["example/tool"]!.queuedJobLabels.push(toolJob));
+      const { output } = await slotRun;
+      expect(output).not.toContain("handed its slot");
+    }, 15_000);
+
+    it("keeps serving the first repository when the token cannot see another", async () => {
+      writeConfig(sandbox, { ...sharedConfig, GITHUB_REPOSITORIES: "example/app=app,example/hidden=hidden" });
+      const { status, output } = await runSlot(sandbox, "linux", "1", "0");
+      expect({ status, output }).toMatchObject({ status: 0 });
+      expect(output).toContain("could not clear offline runners in example/hidden");
+      expect(output).toContain("waiting for a job from example/app");
+    });
+
+    it("refuses a repository entry that is not owner/repo", async () => {
+      writeConfig(sandbox, { ...sharedConfig, GITHUB_REPOSITORIES: "example/app,tool" });
+      const { status, output } = await runSlot(sandbox, "linux", "1", "0");
+      expect(status).toBe(1);
+      expect(output).toContain("entry 'tool' is not owner/repo");
+      expect(tartCalls(sandbox)).toEqual([]);
+    });
   });
 });
