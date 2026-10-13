@@ -49,7 +49,10 @@ pick_repository() {
   local index demand
   if is_shared_slot; then
     for index in "${!repositories[@]}"; do
-      demand="$(unmet_demand "${repositories[$index]}" "$(registration_labels "$index")")" || continue
+      if ! demand="$(unmet_demand "${repositories[$index]}" "$(registration_labels "$index")")"; then
+        log "$pool_name slot $slot: could not read queued jobs in ${repositories[$index]}; the token needs Actions read there" >&2
+        continue
+      fi
       if ((demand > 0)); then
         printf '%s\n' "$index"
         return 0

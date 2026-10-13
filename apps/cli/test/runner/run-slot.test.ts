@@ -259,6 +259,7 @@ describe("run-slot.sh", () => {
       const { status, output } = await runSlot(sandbox, "linux", "1", "0");
       expect({ status, output }).toMatchObject({ status: 0 });
       expect(output).toContain("could not clear offline runners in example/hidden");
+      expect(output).toContain("could not read queued jobs in example/hidden; the token needs Actions read there");
       expect(output).toContain("waiting for a job from example/app");
     });
 

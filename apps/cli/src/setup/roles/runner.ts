@@ -200,7 +200,7 @@ export function checkRunnerRole(setup: Setup, checklist: Checklist) {
   else
     checklist.waitingOnOwner(
       "Runner token",
-      `put GITHUB_RUNNER_TOKEN=<fine-grained token, Administration read and write on ${repositoryNames(options)}> in ${runnerDirectory(machine)}/credentials.env (mode 600), then: launchctl kickstart -k gui/${output(machine, ["id", "-u"])}/dev.provision.runner-bake`,
+      `put GITHUB_RUNNER_TOKEN=<fine-grained token, Administration read and write and Actions read on ${repositoryNames(options)}> in ${runnerDirectory(machine)}/credentials.env (mode 600), then: launchctl kickstart -k gui/${output(machine, ["id", "-u"])}/dev.provision.runner-bake`,
     );
   if (existsSync(join(runnerDirectory(machine), "golden.env"))) checklist.pass("Linux runner VM image baked");
   else checklist.note("The Linux runner VM image bakes once the token is in place (about 15 minutes)");
