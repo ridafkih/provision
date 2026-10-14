@@ -1,8 +1,8 @@
-import { readFileSync } from "node:fs";
+import { appendFileSync, closeSync, openSync, readFileSync, readSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { createChecklist, renderChecklist } from "../../src/core/checklist";
-import { bootOutAgent, renderRunnerAgent, runnerConfig, runnerSlotCount } from "../../src/setup/roles/runner";
+import { bootOutAgent, installRunnerKit, renderRunnerAgent, runnerConfig, runnerSlotCount } from "../../src/setup/roles/runner";
 import { checkRunnerRole } from "../../src/setup/roles/runner";
 import { runnerAgentTemplates } from "../../src/setup/roles/runner-kit";
 import { addFakeCommand, createSandbox, disposeSandbox, setupOf, type Sandbox } from "../sandbox";
@@ -121,5 +121,19 @@ esac`,
     );
     bootOutAgent(sandbox.machine, "gui/501", "dev.provision.runner-slot-1");
     expect(readFileSync(join(sandbox.home, "unloading"), "utf8").trim()).toBe("0");
+  });
+
+  it("replaces a changed runner script without rewriting the copy a running slot is still reading", () => {
+    installRunnerKit(sandbox.machine);
+    const script = join(sandbox.home, ".provision/kit/roles/runner/bin/run-slot.sh");
+    appendFileSync(script, "# the version a running slot started with\n");
+    const runningVersion = readFileSync(script, "utf8");
+    const runningSlot = openSync(script, "r");
+    installRunnerKit(sandbox.machine);
+    const seenByRunningSlot = Buffer.alloc(runningVersion.length + 1024);
+    const bytesRead = readSync(runningSlot, seenByRunningSlot, 0, seenByRunningSlot.length, 0);
+    closeSync(runningSlot);
+    expect(seenByRunningSlot.toString("utf8", 0, bytesRead)).toBe(runningVersion);
+    expect(readFileSync(script, "utf8")).not.toContain("the version a running slot started with");
   });
 });

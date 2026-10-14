@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync, chmodSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync, chmodSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import type { Checklist } from "../../core/checklist";
 import { changed, fail, unchanged } from "../../core/output";
@@ -92,8 +92,10 @@ const readIfPresent = (path: string) => (existsSync(path) ? readFileSync(path, "
 function writeIfChanged(path: string, contents: string, mode: number) {
   if (readIfPresent(path) === contents) return false;
   mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, contents, { mode });
-  chmodSync(path, mode);
+  const staged = `${path}.${process.pid}.new`;
+  writeFileSync(staged, contents, { mode });
+  chmodSync(staged, mode);
+  renameSync(staged, path);
   return true;
 }
 
