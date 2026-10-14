@@ -120,6 +120,24 @@ describe("run-slot.sh", () => {
     expect(tartCalls(sandbox).at(-1)).toBe("delete rack-runner-slot-2");
   });
 
+  it("deregisters a runner it stops at its lifetime so no offline registration is left behind", async () => {
+    addVm(sandbox, "runner-linux");
+    writeConfig(sandbox, { RUNNER_LIFETIME_SECONDS: "1" });
+    const slotRun = runSlot(sandbox, "linux", "1", "60");
+    whenRegistered(sandbox, "example/app", () => {});
+    const { output } = await slotRun;
+    expect(output).toContain("deregistered rack-runner-1-");
+    expect(sandbox.github.repositories["example/app"]!.runners.some((runner) => runner.id === 900)).toBe(false);
+  });
+
+  it("deregisters its runner when launchd stops the slot", async () => {
+    addVm(sandbox, "runner-linux");
+    const slotRun = runSlot(sandbox, "linux", "1", "60");
+    whenRegistered(sandbox, "example/app", () => setTimeout(() => sandbox.slotProcess?.kill("SIGTERM"), 500));
+    await slotRun;
+    expect(sandbox.github.repositories["example/app"]!.runners.some((runner) => runner.id === 900)).toBe(false);
+  }, 15_000);
+
   it("stops the runner and deletes the clone when the VM exits mid-job", async () => {
     addVm(sandbox, "runner-linux");
     const slotRun = runSlot(sandbox, "linux", "1", "60");

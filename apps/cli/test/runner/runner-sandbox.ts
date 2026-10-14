@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -25,6 +25,7 @@ export type Sandbox = {
   apiUrl: string;
   latestRunnerVersion: { value: string };
   github: FakeGitHub;
+  slotProcess?: ChildProcess;
 };
 
 const readBody = async (request: IncomingMessage) => {
@@ -203,6 +204,7 @@ export const runKitScript = (sandbox: Sandbox, script: string, args: string[], j
         FAKE_JOB_SECONDS: jobSeconds,
       },
     });
+    sandbox.slotProcess = child;
     let output = "";
     child.stdout.on("data", (chunk) => (output += chunk));
     child.stderr.on("data", (chunk) => (output += chunk));

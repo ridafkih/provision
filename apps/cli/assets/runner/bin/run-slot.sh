@@ -20,11 +20,19 @@ vm_pid=""
 runner_pid=""
 runner_watch_pid=""
 repository_index=0
+served_repository=""
 runner_id=""
+
+deregister_runner() {
+  [[ -n "$runner_id" ]] || return 0
+  delete_runner "$served_repository" "$runner_id" || return 0
+  log "$pool_name slot $slot: deregistered $runner_name"
+}
 
 finish() {
   [[ -z "$runner_watch_pid" ]] || kill "$runner_watch_pid" 2>/dev/null || true
   [[ -z "$runner_pid" ]] || kill "$runner_pid" 2>/dev/null || true
+  deregister_runner
   discard_vm "$vm_name"
   [[ -z "$vm_pid" ]] || wait "$vm_pid" 2>/dev/null || true
 }
@@ -139,7 +147,7 @@ discard_vm "$vm_name"
 has_runner_credentials || back_off "no GITHUB_RUNNER_TOKEN in $CREDENTIALS_FILE yet"
 vm_exists "$pool_golden_vm" || back_off "no $pool_golden_vm image yet"
 repository_index="$(pick_repository)"
-readonly served_repository="${repositories[$repository_index]}"
+served_repository="${repositories[$repository_index]}"
 clear_offline_runners || back_off "could not clear offline runners in $served_repository"
 jit_registration="$(create_jit_config "$served_repository" "$runner_name" "$(registration_labels "$repository_index")")" \
   || back_off "could not create a just-in-time runner config for $served_repository"
@@ -160,6 +168,7 @@ watch_runner &
 runner_watch_pid=$!
 
 if wait "$runner_pid"; then
+  runner_id=""
   log "$pool_name slot $slot: $runner_name finished"
 else
   log "$pool_name slot $slot: $runner_name exited with status $?"
